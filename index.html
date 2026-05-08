@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Expenses" />
+<meta name="theme-color" content="#ffffff" />
+<title>Expense Tracker</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+<style>
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --color-text-primary: #1a1a1a;
+    --color-text-secondary: #6b6b6b;
+    --color-text-tertiary: #aaaaaa;
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f5f5f5;
+    --color-border-secondary: #d4d4d4;
+    --color-border-tertiary: #ebebeb;
+    --border-radius-lg: 14px;
+    --border-radius-md: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-text-primary: #f0f0f0;
+      --color-text-secondary: #999999;
+      --color-text-tertiary: #555555;
+      --color-background-primary: #1c1c1e;
+      --color-background-secondary: #2c2c2e;
+      --color-border-secondary: #3a3a3c;
+      --color-border-tertiary: #2c2c2e;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--color-background-secondary); min-height: 100vh; }
+  body { font-family: var(--font-sans); }
+  .screen { max-width: 430px; margin: 0 auto; padding: 0 0 60px; }
+  .header { padding: 56px 16px 8px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
+  .hdr-right { display: flex; align-items: center; gap: 10px; }
+  .hdr-date { font-size: 13px; color: var(--color-text-secondary); }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 20px; padding: 4px; display: flex; align-items: center; }
+  .trip-banner { margin: 0 16px 12px; border-radius: var(--border-radius-lg); padding: 12px 14px; background: #E1F5EE; border: 0.5px solid #5DCAA5; display: flex; align-items: center; gap: 10px; }
+  .trip-banner.off { background: var(--color-background-secondary); border-color: var(--color-border-tertiary); }
+  .trip-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
+  .trip-dot.off { background: var(--color-text-tertiary); }
+  .trip-info { flex: 1; min-width: 0; }
+  .trip-name-txt { font-size: 14px; font-weight: 500; color: #0F6E56; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trip-name-txt.off { color: var(--color-text-secondary); }
+  .trip-sub { font-size: 12px; color: #1D9E75; margin-top: 1px; }
+  .trip-sub.off { color: var(--color-text-tertiary); }
+  .trip-toggle { padding: 6px 12px; border-radius: 20px; border: 0.5px solid #5DCAA5; background: transparent; font-size: 12px; color: #0F6E56; cursor: pointer; font-family: var(--font-sans); white-space: nowrap; }
+  .trip-toggle.off { border-color: var(--color-border-secondary); color: var(--color-text-secondary); }
+  .modal-bg { background: rgba(0,0,0,0.4); border-radius: var(--border-radius-lg); padding: 32px 16px; display: flex; align-items: center; justify-content: center; margin: 0 0 12px; }
+  .modal { background: var(--color-background-primary); border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); padding: 20px; width: 100%; }
+  .modal h3 { font-size: 16px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+  .modal p { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 14px; }
+  .modal input { width: 100%; padding: 10px 12px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 15px; color: var(--color-text-primary); font-family: var(--font-sans); outline: none; margin-bottom: 12px; }
+  .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn-sec { padding: 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; font-size: 14px; color: var(--color-text-secondary); cursor: pointer; font-family: var(--font-sans); }
+  .btn-pri { padding: 10px; border-radius: var(--border-radius-md); border: none; background: var(--color-text-primary); font-size: 14px; color: var(--color-background-primary); cursor: pointer; font-family: var(--font-sans); font-weight: 500; }
+  .total-bar { margin: 0 16px 16px; background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 14px 16px; border: 0.5px solid var(--color-border-tertiary); }
+  .total-bar.trip { background: #E1F5EE; border-color: #5DCAA5; }
+  .total-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .total-label.trip { color: #1D9E75; }
+  .total-amt { font-size: 30px; font-weight: 600; color: var(--color-text-primary); }
+  .total-count { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+  .add-card { margin: 0 16px 20px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 16px; }
+  .amt-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .cur { font-size: 22px; font-weight: 500; color: var(--color-text-secondary); }
+  .amt-in-real { flex: 1; font-size: 28px; font-weight: 600; border: none; outline: none; background: transparent; color: var(--color-text-primary); font-family: var(--font-sans); width: 100%; }
+  .amt-in-real::placeholder { color: var(--color-text-tertiary); }
+  .note-in { width: 100%; border: none; outline: none; background: transparent; font-size: 14px; color: var(--color-text-secondary); font-family: var(--font-sans); margin-bottom: 12px; }
+  .note-in::placeholder { color: var(--color-text-tertiary); }
+  .cat-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cat-btn { padding: 6px 11px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 13px; color: var(--color-text-secondary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .cat-btn.active { border-color: #1D9E75; background: #E1F5EE; color: #0F6E56; }
+  .sub-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); align-items: center; }
+  .sub-btn { padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-primary); font-size: 12px; color: var(--color-text-secondary); cursor: pointer; }
+  .sub-btn.active { border-color: #1D9E75; background: #E1F5EE; color: #0F6E56; font-weight: 500; }
+  .add-btn { width: 100%; padding: 13px; background: var(--color-text-primary); color: var(--color-background-primary); border: none; border-radius: var(--border-radius-md); font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--font-sans); }
+  .sec-title { padding: 0 16px 8px; font-size: 12px; color: var(--color-text-secondary); letter-spacing: .04em; text-transform: uppercase; }
+  .entries-card { margin: 0 16px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  .entry { display: flex; align-items: center; padding: 11px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); gap: 10px; }
+  .entry:last-child { border-bottom: none; }
+  .cat-ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .e-info { flex: 1; min-width: 0; }
+  .e-note { font-size: 14px; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .e-meta { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+  .e-amt { font-size: 15px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; }
+  .del-btn { background: none; border: none; color: var(--color-text-tertiary); cursor: pointer; padding: 4px; font-size: 15px; opacity: .5; }
+  .trip-badge { display: inline-block; padding: 1px 6px; border-radius: 20px; background: #E1F5EE; color: #0F6E56; font-size: 10px; margin-left: 4px; vertical-align: middle; }
+  .past-trips { margin: 16px 16px 0; }
+  .past-trip-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .pt-header { display: flex; justify-content: space-between; align-items: center; }
+  .pt-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); display: flex; align-items: center; gap: 6px; }
+  .pt-right { display: flex; align-items: center; gap: 10px; }
+  .pt-total { font-size: 14px; font-weight: 500; color: #0F6E56; }
+  .pt-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 3px; }
+  .pt-del { background: none; border: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 15px; opacity: .5; padding: 2px; }
+  .trip-detail { margin: 0 16px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  .td-header { padding: 14px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 10px; }
+  .td-back { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 18px; padding: 0; display: flex; align-items: center; }
+  .td-title { flex: 1; font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
+  .td-total { font-size: 14px; font-weight: 500; color: #0F6E56; }
+  .cat-editor { max-width: 430px; margin: 0 auto; padding: 0 16px 40px; font-family: var(--font-sans); }
+  .ce-header { display: flex; align-items: center; justify-content: space-between; padding: 56px 0 16px; }
+  .ce-title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
+  .ce-back { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 13px; font-family: var(--font-sans); display: flex; align-items: center; gap: 4px; }
+  .ce-cat-section { margin-bottom: 12px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  .ce-cat-header { padding: 10px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 8px; }
+  .ce-cat-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .ce-cat-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); flex: 1; }
+  .ce-subs { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .ce-sub-chip { display: flex; align-items: center; gap: 4px; padding: 5px 8px 5px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); font-size: 12px; color: var(--color-text-primary); }
+  .ce-sub-chip.is-other { opacity: .5; }
+  .ce-chip-del { background: none; border: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 13px; padding: 0; line-height: 1; display: flex; align-items: center; }
+  .ce-add-sub { padding: 5px 10px; border-radius: 20px; border: 0.5px dashed var(--color-border-secondary); background: transparent; font-size: 12px; color: var(--color-text-tertiary); cursor: pointer; font-family: var(--font-sans); }
+  .new-sub-in { padding: 5px 8px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 12px; color: var(--color-text-primary); font-family: var(--font-sans); outline: none; width: 140px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const DEFAULT_CATS = [
+  {id:'food',label:'Food',icon:'ti-tools-kitchen-2',color:'#EF9F27',bg:'#FAEEDA',subs:['Meal','Drink','Snack','Other']},
+  {id:'transport',label:'Transport',icon:'ti-car',color:'#5DCAA5',bg:'#E1F5EE',subs:['BTS','Grab','Gas','Other']},
+  {id:'shopping',label:'Shopping',icon:'ti-shopping-bag',color:'#85B7EB',bg:'#E6F1FB',subs:['Skin care','Clothes','Gadget','Movie','Other']},
+  {id:'health',label:'Health',icon:'ti-heart-rate-monitor',color:'#ED93B1',bg:'#FBEAF0',subs:['Badminton','Fitness','Other']},
+  {id:'bills',label:'Bills',icon:'ti-receipt',color:'#AFA9EC',bg:'#EEEDFE',subs:['Internet','Entertainment','Other']},
+  {id:'other',label:'Other',icon:'ti-dots',color:'#B4B2A9',bg:'#F1EFE8',subs:['Other']},
+];
+
+function loadCats(){ try{ const s=localStorage.getItem('categories'); return s?JSON.parse(s):null; }catch{ return null; } }
+function saveCats(c){ try{ localStorage.setItem('categories',JSON.stringify(c)); }catch{} }
+function getCats(){ return loadCats()||DEFAULT_CATS; }
+function dayKey(){ const d=new Date(); return `exp_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`; }
+function loadEntries(){ try{ return JSON.parse(localStorage.getItem(dayKey())||'[]'); }catch{ return []; } }
+function saveEntries(e){ try{ localStorage.setItem(dayKey(),JSON.stringify(e)); }catch{} }
+function loadTrips(){ try{ return JSON.parse(localStorage.getItem('all_trips')||'[]'); }catch{ return []; } }
+function saveTrips(t){ try{ localStorage.setItem('all_trips',JSON.stringify(t)); }catch{} }
+function loadActive(){ try{ return JSON.parse(localStorage.getItem('active_trip')||'null'); }catch{ return null; } }
+function saveActive(t){ try{ localStorage.setItem('active_trip',JSON.stringify(t)); }catch{} }
+
+const S = { selCat:'food', selSub:'Meal', tripMode:false, tripName:'', tripStart:null, tripId:null, modal:null, viewTripId:null, showEditor:false, addingSubFor:null };
+
+(function init(){ const at=loadActive(); if(at){ S.tripMode=true; S.tripName=at.name; S.tripStart=at.start; S.tripId=at.id; } })();
+
+function catById(id){ return getCats().find(c=>c.id===id)||(getCats()[5]||DEFAULT_CATS[5]); }
+function fmtN(n){ return Math.round(n).toLocaleString('th-TH'); }
+function fmtTime(ts){ return new Date(ts).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
+function fmtDate(ts){ return new Date(ts).toLocaleDateString('th-TH',{month:'short',day:'numeric'}); }
+
+function selectCat(id){ S.selCat=id; S.selSub=catById(id).subs[0]; render(); }
+function selectSub(s){ S.selSub=s; render(); }
+
+function addEntry(){
+  const ai=document.getElementById('amt-in');
+  const ni=document.getElementById('note-in');
+  if(!ai) return;
+  const amt=parseFloat(ai.value);
+  if(!amt||amt<=0){ ai.focus(); return; }
+  const entries=loadEntries();
+  entries.push({amt,note:(ni?ni.value.trim():''),cat:S.selCat,sub:S.selSub,ts:Date.now(),tripId:S.tripMode?S.tripId:null});
+  saveEntries(entries);
+  ai.value=''; if(ni) ni.value='';
+  ai.focus();
+  render();
+}
+
+function delEntry(ts){ saveEntries(loadEntries().filter(e=>e.ts!==ts)); render(); }
+
+function startTrip(name){
+  const id=Date.now();
+  S.tripMode=true; S.tripName=name; S.tripStart=Date.now(); S.tripId=id;
+  saveActive({name,start:S.tripStart,id}); S.modal=null; render();
+}
+function endTrip(){
+  const entries=loadEntries().filter(e=>e.tripId===S.tripId);
+  const total=entries.reduce((s,e)=>s+e.amt,0);
+  const trips=loadTrips();
+  trips.push({id:S.tripId,name:S.tripName,start:S.tripStart,end:Date.now(),total,count:entries.length});
+  saveTrips(trips); saveActive(null);
+  S.tripMode=false; S.tripName=''; S.tripStart=null; S.tripId=null; S.modal=null; render();
+}
+function delTrip(id,ev){
+  ev.stopPropagation();
+  if(S.viewTripId===id) S.viewTripId=null;
+  saveTrips(loadTrips().filter(t=>t.id!==id)); render();
+}
+function viewTrip(id){ S.viewTripId=(S.viewTripId===id?null:id); render(); }
+
+function deleteSub(catId,subName){
+  const cats=getCats(); const cat=cats.find(c=>c.id===catId);
+  if(!cat||subName==='Other') return;
+  cat.subs=cat.subs.filter(s=>s!==subName); saveCats(cats);
+  if(S.selCat===catId&&S.selSub===subName) S.selSub=cat.subs[0]||'Other';
+  render();
+}
+function addSubConfirm(catId){
+  const el=document.getElementById('new-sub-in'); if(!el) return;
+  const val=el.value.trim(); if(!val) return;
+  const cats=getCats(); const cat=cats.find(c=>c.id===catId); if(!cat) return;
+  if(!cat.subs.includes(val)){ const idx=cat.subs.indexOf('Other'); if(idx>=0) cat.subs.splice(idx,0,val); else cat.subs.push(val); }
+  saveCats(cats); S.addingSubFor=null; render();
+}
+function doStartTrip(){ const el=document.getElementById('trip-name-in'); startTrip((el&&el.value.trim())||'My trip'); }
+
+function render(){
+  const app=document.getElementById('app');
+  if(S.showEditor){ app.innerHTML=renderEditor(getCats()); bindEditorEvents(); return; }
+  if(S.viewTripId){ app.innerHTML=renderTripDetail(S.viewTripId); bindDetailEvents(); return; }
+
+  const entries=loadEntries();
+  const trips=loadTrips().slice().reverse();
+  const total=entries.reduce((s,e)=>s+e.amt,0);
+  const cats=getCats(); const cat=catById(S.selCat);
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('th-TH',{weekday:'short',month:'short',day:'numeric'});
+  let h=`<div class="screen">`;
+  h+=`<div class="header"><h1>Today</h1><div class="hdr-right"><span class="hdr-date">${dateStr}</span><button class="icon-btn" onclick="S.showEditor=true;render()" aria-label="Edit categories"><i class="ti ti-adjustments-horizontal"></i></button></div></div>`;
+
+  if(S.modal==='trip-start'){
+    h+=`<div class="modal-bg"><div class="modal"><h3>Start a trip</h3><p>Name this trip to track expenses separately</p><input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="40" /><div class="modal-btns"><button class="btn-sec" onclick="S.modal=null;render()">Cancel</button><button class="btn-pri" onclick="doStartTrip()">Start trip</button></div></div></div>`;
+  }
+  if(S.modal==='trip-end'){
+    const tt=loadEntries().filter(e=>e.tripId===S.tripId).reduce((s,e)=>s+e.amt,0);
+    const tc=loadEntries().filter(e=>e.tripId===S.tripId).length;
+    h+=`<div class="modal-bg"><div class="modal"><h3>End "${S.tripName}"?</h3><p>Today: ฿${fmtN(tt)} · ${tc} expense${tc!==1?'s':''}. The trip will be saved.</p><div class="modal-btns"><button class="btn-sec" onclick="S.modal=null;render()">Keep going</button><button class="btn-pri" onclick="endTrip()">End &amp; save</button></div></div></div>`;
+  }
+
+  if(S.tripMode){
+    const tt=loadEntries().filter(e=>e.tripId===S.tripId).reduce((s,e)=>s+e.amt,0);
+    h+=`<div class="trip-banner"><div class="trip-dot"></div><div class="trip-info"><div class="trip-name-txt"><i class="ti ti-plane" style="font-size:13px;margin-right:4px"></i>${S.tripName}</div><div class="trip-sub">On travel · today ฿${fmtN(tt)}</div></div><button class="trip-toggle" onclick="S.modal='trip-end';render()">End trip</button></div>`;
+  } else {
+    h+=`<div class="trip-banner off"><div class="trip-dot off"></div><div class="trip-info"><div class="trip-name-txt off">Travel mode off</div><div class="trip-sub off">Tap to start a trip</div></div><button class="trip-toggle off" onclick="S.modal='trip-start';render()">Start trip</button></div>`;
+  }
+
+  h+=`<div class="total-bar${S.tripMode?' trip':''}"><div class="total-label${S.tripMode?' trip':''}">Total today</div><div class="total-amt">฿${fmtN(total)}</div><div class="total-count">${entries.length===0?'No expenses yet':entries.length+' expense'+(entries.length>1?'s':'')}</div></div>`;
+  h+=`<div class="add-card"><div class="amt-row"><span class="cur">฿</span><input class="amt-in-real" id="amt-in" type="number" inputmode="decimal" placeholder="0" min="0" /></div><input class="note-in" id="note-in" type="text" placeholder="Note (optional)" maxlength="60" /><div class="cat-row">${cats.map(c=>`<button class="cat-btn${c.id===S.selCat?' active':''}" onmousedown="event.preventDefault()" onclick="selectCat('${c.id}')"><i class="ti ${c.icon}"></i>${c.label}</button>`).join('')}</div><div class="sub-row">${cat.subs.map(s=>`<button class="sub-btn${s===S.selSub?' active':''}" onmousedown="event.preventDefault()" onclick="selectSub('${s}')">${s}</button>`).join('')}</div><button class="add-btn" onclick="addEntry()">Add expense</button></div>`;
+
+  if(entries.length>0){
+    h+=`<div class="sec-title">Today's entries</div><div class="entries-card">`;
+    [...entries].reverse().forEach(e=>{
+      const c=catById(e.cat);
+      const tripName=e.tripId?(S.tripMode&&e.tripId===S.tripId?S.tripName:(loadTrips().find(t=>t.id===e.tripId)||{name:'trip'}).name):'';
+      const tb=e.tripId?`<span class="trip-badge"><i class="ti ti-plane" style="font-size:9px"></i> ${tripName}</span>`:'';
+      h+=`<div class="entry"><div class="cat-ic" style="background:${c.bg}"><i class="ti ${c.icon}" style="color:${c.color};font-size:16px"></i></div><div class="e-info"><div class="e-note">${e.note||e.sub||c.label}${tb}</div><div class="e-meta">${c.label} › ${e.sub} · ${fmtTime(e.ts)}</div></div><div class="e-amt">฿${fmtN(e.amt)}</div><button class="del-btn" onclick="delEntry(${e.ts})"><i class="ti ti-x"></i></button></div>`;
+    });
+    h+=`</div>`;
+  }
+
+  if(trips.length>0){
+    h+=`<div class="past-trips"><div class="sec-title" style="padding:0 0 8px">Past trips</div>`;
+    trips.forEach(t=>{
+      h+=`<div class="past-trip-card" onclick="viewTrip(${t.id})"><div class="pt-header"><span class="pt-name"><i class="ti ti-plane" style="font-size:13px"></i>${t.name}<i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-tertiary)"></i></span><div class="pt-right"><span class="pt-total">฿${fmtN(t.total)}</span><button class="pt-del" onclick="delTrip(${t.id},event)"><i class="ti ti-trash"></i></button></div></div><div class="pt-meta">${fmtDate(t.start)} · ${t.count} expense${t.count!==1?'s':''}</div></div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+  app.innerHTML=h;
+
+  const ai=document.getElementById('amt-in');
+  if(ai) ai.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const ni=document.getElementById('note-in'); if(ni) ni.focus(); } });
+  const ni=document.getElementById('note-in');
+  if(ni) ni.addEventListener('keydown',e=>{ if(e.key==='Enter') addEntry(); });
+  const ti=document.getElementById('trip-name-in');
+  if(ti){ ti.focus(); ti.addEventListener('keydown',e=>{ if(e.key==='Enter') doStartTrip(); }); }
+}
+
+function renderTripDetail(tripId){
+  const trips=loadTrips(); const trip=trips.find(t=>t.id===tripId);
+  if(!trip) return '<div style="padding:20px 16px;color:var(--color-text-secondary)">Trip not found.</div>';
+  const allEntries=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('exp_')){ try{ JSON.parse(localStorage.getItem(k)||'[]').forEach(e=>{ if(e.tripId===tripId) allEntries.push(e); }); }catch{} }
+  }
+  allEntries.sort((a,b)=>a.ts-b.ts);
+  const total=allEntries.reduce((s,e)=>s+e.amt,0);
+  let h=`<div style="max-width:430px;margin:0 auto;padding:0 0 60px;font-family:var(--font-sans)"><div class="trip-detail"><div class="td-header"><button class="td-back" id="td-back"><i class="ti ti-arrow-left"></i></button><div class="td-title"><i class="ti ti-plane" style="font-size:14px;margin-right:6px"></i>${trip.name}</div><span class="td-total">฿${fmtN(total)}</span></div>`;
+  if(allEntries.length===0){
+    h+=`<div style="padding:24px 16px;text-align:center;color:var(--color-text-tertiary);font-size:14px">No entries found.</div>`;
+  } else {
+    let lastDate='';
+    allEntries.forEach(e=>{
+      const c=catById(e.cat); const d=fmtDate(e.ts);
+      if(d!==lastDate){ if(lastDate) h+=`</div>`; h+=`<div style="padding:8px 14px 4px;font-size:11px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;background:var(--color-background-secondary)">${d}</div><div>`; lastDate=d; }
+      h+=`<div class="entry"><div class="cat-ic" style="background:${c.bg}"><i class="ti ${c.icon}" style="color:${c.color};font-size:16px"></i></div><div class="e-info"><div class="e-note">${e.note||e.sub||c.label}</div><div class="e-meta">${c.label} › ${e.sub} · ${fmtTime(e.ts)}</div></div><div class="e-amt">฿${fmtN(e.amt)}</div></div>`;
+    });
+    if(lastDate) h+=`</div>`;
+  }
+  h+=`</div></div>`;
+  return h;
+}
+
+function bindDetailEvents(){
+  const b=document.getElementById('td-back');
+  if(b) b.addEventListener('click',()=>{ S.viewTripId=null; render(); });
+}
+
+function renderEditor(cats){
+  let h=`<div class="cat-editor"><div class="ce-header"><span class="ce-title">Sub-categories</span><button class="ce-back" id="editor-back"><i class="ti ti-arrow-left" style="font-size:15px"></i> Back</button></div>`;
+  cats.forEach(cat=>{
+    h+=`<div class="ce-cat-section"><div class="ce-cat-header"><div class="ce-cat-icon" style="background:${cat.bg}"><i class="ti ${cat.icon}" style="color:${cat.color}"></i></div><span class="ce-cat-name">${cat.label}</span></div><div class="ce-subs">`;
+    cat.subs.forEach(s=>{
+      const isOther=s==='Other';
+      h+=`<div class="ce-sub-chip${isOther?' is-other':''}">${s}${!isOther?`<button class="ce-chip-del" onclick="deleteSub('${cat.id}','${s}')"><i class="ti ti-x"></i></button>`:''}</div>`;
+    });
+    if(S.addingSubFor===cat.id){
+      h+=`<input id="new-sub-in" class="new-sub-in" type="text" placeholder="Name..." maxlength="24" /><button class="ce-add-sub" onclick="addSubConfirm('${cat.id}')">Add</button><button class="ce-add-sub" onclick="S.addingSubFor=null;render()">Cancel</button>`;
+    } else {
+      h+=`<button class="ce-add-sub" onclick="S.addingSubFor='${cat.id}';render()"><i class="ti ti-plus" style="font-size:11px"></i> Add</button>`;
+    }
+    h+=`</div></div>`;
+  });
+  h+=`</div>`;
+  return h;
+}
+
+function bindEditorEvents(){
+  const b=document.getElementById('editor-back');
+  if(b) b.addEventListener('click',()=>{ S.showEditor=false; S.addingSubFor=null; render(); });
+  const ni=document.getElementById('new-sub-in');
+  if(ni){ ni.focus(); ni.addEventListener('keydown',e=>{ if(e.key==='Enter'&&S.addingSubFor) addSubConfirm(S.addingSubFor); if(e.key==='Escape'){ S.addingSubFor=null; render(); } }); }
+}
+
+render();
+</script>
+</body>
+</html>
