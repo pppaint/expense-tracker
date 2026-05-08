@@ -549,7 +549,7 @@ function renderHistory() {
   Object.entries(byDate).sort((a,b) => b[0].localeCompare(a[0])).forEach(([date, items]) => {
     const dayTotal = items.reduce((s,e) => s+e.amount, 0);
     h += `<div class="history-group-label">${fmtDateShort(date)} · ฿${fmtN(dayTotal)}</div><div class="history-card">`;
-    items.forEach(e => {
+    items.forEach((e, index) => {
       const cat = catById(e.category);
       const tripName = e.tripId ? getTripName(e.tripId) : '';
       const tb = tripName ? `<span class="trip-tag">✈ ${tripName}</span>` : '';
@@ -559,7 +559,7 @@ function renderHistory() {
           <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
         </div>
         <div class="h-amt">฿${fmtN(e.amount)}</div>
-        <button class="h-del" onclick="deleteExpense('${e.id}','${e.date}')">×</button>
+        <button class="h-del" onclick="deleteExpenseByIndex('${e.date}', ${index})">×</button>
       </div>`;
     });
     h += `</div>`;
@@ -584,6 +584,26 @@ function renderHistory() {
   });
   th += `</div>`;
   trips_el.innerHTML = th;
+}
+
+function deleteExpenseByIndex(date, index) {
+  const arr = loadDay(date);
+
+  if (!Array.isArray(arr)) return;
+
+  if (index < 0 || index >= arr.length) return;
+
+  arr.splice(index, 1);
+
+  saveDay(date, arr);
+
+  renderTodayTotal();
+  renderTravelBanner();
+  renderHistory();
+
+  if (document.getElementById('page-summary').classList.contains('active')) {
+    renderSummary();
+  }
 }
 
 function getTripName(tripId) {
