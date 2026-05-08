@@ -1,334 +1,765 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Expenses" />
-<meta name="theme-color" content="#ffffff" />
-<title>Expense Tracker</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Expenses"/>
+<meta name="theme-color" content="#0a0a0c"/>
+<title>Expenses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --color-text-primary: #1a1a1a;
-    --color-text-secondary: #6b6b6b;
-    --color-text-tertiary: #aaaaaa;
-    --color-background-primary: #ffffff;
-    --color-background-secondary: #f5f5f5;
-    --color-border-secondary: #d4d4d4;
-    --color-border-tertiary: #ebebeb;
-    --border-radius-lg: 14px;
-    --border-radius-md: 10px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-text-primary: #f0f0f0;
-      --color-text-secondary: #999999;
-      --color-text-tertiary: #555555;
-      --color-background-primary: #1c1c1e;
-      --color-background-secondary: #2c2c2e;
-      --color-border-secondary: #3a3a3c;
-      --color-border-tertiary: #2c2c2e;
-    }
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { background: var(--color-background-secondary); min-height: 100vh; }
-  body { font-family: var(--font-sans); }
-  .screen { max-width: 430px; margin: 0 auto; padding: 0 0 60px; }
-  .header { padding: 56px 16px 8px; display: flex; justify-content: space-between; align-items: center; }
-  .header h1 { font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
-  .hdr-right { display: flex; align-items: center; gap: 10px; }
-  .hdr-date { font-size: 13px; color: var(--color-text-secondary); }
-  .icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 20px; padding: 4px; display: flex; align-items: center; }
-  .trip-banner { margin: 0 16px 12px; border-radius: var(--border-radius-lg); padding: 12px 14px; background: #E1F5EE; border: 0.5px solid #5DCAA5; display: flex; align-items: center; gap: 10px; }
-  .trip-banner.off { background: var(--color-background-secondary); border-color: var(--color-border-tertiary); }
-  .trip-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
-  .trip-dot.off { background: var(--color-text-tertiary); }
-  .trip-info { flex: 1; min-width: 0; }
-  .trip-name-txt { font-size: 14px; font-weight: 500; color: #0F6E56; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .trip-name-txt.off { color: var(--color-text-secondary); }
-  .trip-sub { font-size: 12px; color: #1D9E75; margin-top: 1px; }
-  .trip-sub.off { color: var(--color-text-tertiary); }
-  .trip-toggle { padding: 6px 12px; border-radius: 20px; border: 0.5px solid #5DCAA5; background: transparent; font-size: 12px; color: #0F6E56; cursor: pointer; font-family: var(--font-sans); white-space: nowrap; }
-  .trip-toggle.off { border-color: var(--color-border-secondary); color: var(--color-text-secondary); }
-  .modal-bg { background: rgba(0,0,0,0.4); border-radius: var(--border-radius-lg); padding: 32px 16px; display: flex; align-items: center; justify-content: center; margin: 0 0 12px; }
-  .modal { background: var(--color-background-primary); border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); padding: 20px; width: 100%; }
-  .modal h3 { font-size: 16px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
-  .modal p { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 14px; }
-  .modal input { width: 100%; padding: 10px 12px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 15px; color: var(--color-text-primary); font-family: var(--font-sans); outline: none; margin-bottom: 12px; }
-  .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .btn-sec { padding: 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; font-size: 14px; color: var(--color-text-secondary); cursor: pointer; font-family: var(--font-sans); }
-  .btn-pri { padding: 10px; border-radius: var(--border-radius-md); border: none; background: var(--color-text-primary); font-size: 14px; color: var(--color-background-primary); cursor: pointer; font-family: var(--font-sans); font-weight: 500; }
-  .total-bar { margin: 0 16px 16px; background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 14px 16px; border: 0.5px solid var(--color-border-tertiary); }
-  .total-bar.trip { background: #E1F5EE; border-color: #5DCAA5; }
-  .total-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
-  .total-label.trip { color: #1D9E75; }
-  .total-amt { font-size: 30px; font-weight: 600; color: var(--color-text-primary); }
-  .total-count { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
-  .add-card { margin: 0 16px 20px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 16px; }
-  .amt-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
-  .cur { font-size: 22px; font-weight: 500; color: var(--color-text-secondary); }
-  .amt-in-real { flex: 1; font-size: 28px; font-weight: 600; border: none; outline: none; background: transparent; color: var(--color-text-primary); font-family: var(--font-sans); width: 100%; }
-  .amt-in-real::placeholder { color: var(--color-text-tertiary); }
-  .note-in { width: 100%; border: none; outline: none; background: transparent; font-size: 14px; color: var(--color-text-secondary); font-family: var(--font-sans); margin-bottom: 12px; }
-  .note-in::placeholder { color: var(--color-text-tertiary); }
-  .cat-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-  .cat-btn { padding: 6px 11px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 13px; color: var(--color-text-secondary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
-  .cat-btn.active { border-color: #1D9E75; background: #E1F5EE; color: #0F6E56; }
-  .sub-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); align-items: center; }
-  .sub-btn { padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-primary); font-size: 12px; color: var(--color-text-secondary); cursor: pointer; }
-  .sub-btn.active { border-color: #1D9E75; background: #E1F5EE; color: #0F6E56; font-weight: 500; }
-  .add-btn { width: 100%; padding: 13px; background: var(--color-text-primary); color: var(--color-background-primary); border: none; border-radius: var(--border-radius-md); font-size: 15px; font-weight: 600; cursor: pointer; font-family: var(--font-sans); }
-  .sec-title { padding: 0 16px 8px; font-size: 12px; color: var(--color-text-secondary); letter-spacing: .04em; text-transform: uppercase; }
-  .entries-card { margin: 0 16px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
-  .entry { display: flex; align-items: center; padding: 11px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); gap: 10px; }
-  .entry:last-child { border-bottom: none; }
-  .cat-ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-  .e-info { flex: 1; min-width: 0; }
-  .e-note { font-size: 14px; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .e-meta { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
-  .e-amt { font-size: 15px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; }
-  .del-btn { background: none; border: none; color: var(--color-text-tertiary); cursor: pointer; padding: 4px; font-size: 15px; opacity: .5; }
-  .trip-badge { display: inline-block; padding: 1px 6px; border-radius: 20px; background: #E1F5EE; color: #0F6E56; font-size: 10px; margin-left: 4px; vertical-align: middle; }
-  .past-trips { margin: 16px 16px 0; }
-  .past-trip-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
-  .pt-header { display: flex; justify-content: space-between; align-items: center; }
-  .pt-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); display: flex; align-items: center; gap: 6px; }
-  .pt-right { display: flex; align-items: center; gap: 10px; }
-  .pt-total { font-size: 14px; font-weight: 500; color: #0F6E56; }
-  .pt-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 3px; }
-  .pt-del { background: none; border: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 15px; opacity: .5; padding: 2px; }
-  .trip-detail { margin: 0 16px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
-  .td-header { padding: 14px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 10px; }
-  .td-back { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 18px; padding: 0; display: flex; align-items: center; }
-  .td-title { flex: 1; font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
-  .td-total { font-size: 14px; font-weight: 500; color: #0F6E56; }
-  .cat-editor { max-width: 430px; margin: 0 auto; padding: 0 16px 40px; font-family: var(--font-sans); }
-  .ce-header { display: flex; align-items: center; justify-content: space-between; padding: 56px 0 16px; }
-  .ce-title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
-  .ce-back { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 13px; font-family: var(--font-sans); display: flex; align-items: center; gap: 4px; }
-  .ce-cat-section { margin-bottom: 12px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
-  .ce-cat-header { padding: 10px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 8px; }
-  .ce-cat-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-  .ce-cat-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); flex: 1; }
-  .ce-subs { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .ce-sub-chip { display: flex; align-items: center; gap: 4px; padding: 5px 8px 5px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); font-size: 12px; color: var(--color-text-primary); }
-  .ce-sub-chip.is-other { opacity: .5; }
-  .ce-chip-del { background: none; border: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 13px; padding: 0; line-height: 1; display: flex; align-items: center; }
-  .ce-add-sub { padding: 5px 10px; border-radius: 20px; border: 0.5px dashed var(--color-border-secondary); background: transparent; font-size: 12px; color: var(--color-text-tertiary); cursor: pointer; font-family: var(--font-sans); }
-  .new-sub-in { padding: 5px 8px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); font-size: 12px; color: var(--color-text-primary); font-family: var(--font-sans); outline: none; width: 140px; }
+:root {
+  --bg: #0a0a0c;
+  --surface: #141416;
+  --surface2: #1c1c20;
+  --surface3: #242428;
+  --green: #22c55e;
+  --green-dim: #16a34a;
+  --green-soft: #0d2818;
+  --green-border: #1a4a2a;
+  --text: #f0f0f2;
+  --muted: #72727a;
+  --muted2: #4a4a52;
+  --border: #222226;
+  --danger: #ef4444;
+  --danger-soft: #2a1010;
+  --radius: 20px;
+  --radius-sm: 14px;
+  --font: 'DM Sans', -apple-system, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { background: var(--bg); }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(80px + env(safe-area-inset-bottom)); overflow-x: hidden; }
+
+/* ── PAGES ── */
+.page { display: none; padding: 0 16px 24px; }
+.page.active { display: block; }
+
+/* ── TOP HEADER ── */
+.top-bar { padding: calc(env(safe-area-inset-top) + 20px) 16px 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+.top-bar h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; }
+.top-bar .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.top-right { text-align: right; }
+.today-total { font-size: 28px; font-weight: 600; color: var(--green); letter-spacing: -0.5px; }
+
+/* ── TRAVEL BANNER ── */
+.travel-banner { margin: 0 16px 14px; border-radius: var(--radius); padding: 13px 16px; display: flex; align-items: center; gap: 12px; background: var(--green-soft); border: 1px solid var(--green-border); }
+.travel-banner.off { background: var(--surface); border-color: var(--border); }
+.travel-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 6px var(--green); }
+.travel-dot.off { background: var(--muted2); box-shadow: none; }
+.travel-info { flex: 1; min-width: 0; }
+.travel-name { font-size: 14px; font-weight: 500; color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.travel-name.off { color: var(--muted); }
+.travel-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.travel-btn { padding: 7px 14px; border-radius: 30px; border: 1px solid var(--green-border); background: transparent; font-size: 12px; font-weight: 500; color: var(--green); cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.travel-btn.off { border-color: var(--border); color: var(--muted); }
+
+/* ── AMOUNT INPUT CARD ── */
+.amount-card { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; border: 1px solid var(--border); }
+.amount-display { font-size: 52px; font-weight: 600; color: var(--green); letter-spacing: -2px; text-align: right; min-height: 64px; line-height: 1; margin-bottom: 6px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.amount-display .cursor { width: 2px; height: 48px; background: var(--green); border-radius: 2px; animation: blink 1s infinite; flex-shrink: 0; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.amount-display .placeholder { color: var(--muted2); }
+.amount-input-real { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.amount-tap-area { width: 100%; padding: 0; background: none; border: none; cursor: pointer; display: block; }
+
+/* ── CATEGORY PILLS ── */
+.section-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+.pills-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.pills-scroll::-webkit-scrollbar { display: none; }
+.pill { padding: 9px 16px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface2); font-size: 14px; font-weight: 400; color: var(--muted); cursor: pointer; white-space: nowrap; font-family: var(--font); transition: all 0.15s; flex-shrink: 0; }
+.pill.active { background: var(--green-soft); border-color: var(--green-border); color: var(--green); font-weight: 500; }
+
+/* ── SUB PILLS ── */
+.sub-area { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; margin-top: 10px; margin-bottom: 0; }
+.sub-pill { padding: 7px 13px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; font-family: var(--font); transition: all 0.15s; flex-shrink: 0; }
+.sub-pill.active { background: var(--green-soft); border-color: var(--green-border); color: var(--green); font-weight: 500; }
+.sub-pills-scroll { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.sub-pills-scroll::-webkit-scrollbar { display: none; }
+
+/* ── INPUTS ── */
+.text-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; color: var(--text); font-size: 15px; font-family: var(--font); outline: none; margin-top: 10px; -webkit-appearance: none; }
+.text-input::placeholder { color: var(--muted2); }
+.text-input:focus { border-color: var(--green-border); }
+input[type="date"].text-input { color-scheme: dark; }
+
+/* ── SAVE BUTTON ── */
+.save-btn { width: 100%; margin-top: 14px; background: var(--green); border: none; border-radius: var(--radius-sm); padding: 16px; font-size: 16px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); letter-spacing: -0.2px; transition: opacity 0.15s; }
+.save-btn:active { opacity: 0.85; }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: rgba(14,14,17,0.92); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; }
+.nav-btn { flex: 1; background: none; border: none; padding: 14px 0 12px; color: var(--muted2); font-size: 11px; font-weight: 500; font-family: var(--font); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: color 0.15s; letter-spacing: 0.03em; text-transform: uppercase; }
+.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.6; }
+.nav-btn.active { color: var(--green); }
+
+/* ── MODAL ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; padding: 16px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.modal-overlay.hidden { display: none; }
+.modal { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 22px; width: 100%; max-width: 430px; margin: 0 auto; }
+.modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.modal p { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+.modal input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; color: var(--text); font-size: 16px; font-family: var(--font); outline: none; margin-bottom: 14px; -webkit-appearance: none; }
+.modal input::placeholder { color: var(--muted2); }
+.modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-sec { padding: 13px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; font-family: var(--font); }
+.btn-pri { padding: 13px; border-radius: var(--radius-sm); border: none; background: var(--green); font-size: 14px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); }
+
+/* ── SUMMARY PAGE ── */
+.page-header { padding: calc(env(safe-area-inset-top) + 20px) 0 20px; }
+.page-header h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.4px; }
+.page-header .month-label { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.summary-total-block { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); }
+.summary-total-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.summary-total-amt { font-size: 38px; font-weight: 600; color: var(--green); letter-spacing: -1.5px; }
+.summary-total-count { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.summary-card { background: var(--surface); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 10px; border: 1px solid var(--border); }
+.summary-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.summary-cat { font-size: 15px; font-weight: 500; }
+.summary-amt { font-size: 15px; font-weight: 600; color: var(--green); }
+.bar-track { height: 4px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.4s ease; }
+.summary-pct { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* ── HISTORY PAGE ── */
+.history-group-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 8px; }
+.history-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 10px; }
+.history-item { display: flex; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--border); gap: 12px; }
+.history-item:last-child { border-bottom: none; }
+.h-info { flex: 1; min-width: 0; }
+.h-cat { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.h-amt { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.h-del { background: none; border: none; color: var(--muted2); cursor: pointer; padding: 6px; font-size: 18px; line-height: 1; display: flex; align-items: center; }
+.trip-tag { display: inline-block; padding: 1px 7px; border-radius: 20px; background: var(--green-soft); border: 1px solid var(--green-border); color: var(--green); font-size: 10px; margin-left: 5px; vertical-align: middle; }
+
+/* ── PAST TRIPS ── */
+.past-trips-section { margin-top: 24px; }
+.trip-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s; }
+.trip-card:active { border-color: var(--green-border); }
+.trip-card-header { display: flex; justify-content: space-between; align-items: center; }
+.trip-card-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 7px; }
+.trip-card-right { display: flex; align-items: center; gap: 10px; }
+.trip-card-total { font-size: 15px; font-weight: 600; color: var(--green); }
+.trip-card-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.trip-del-btn { background: none; border: none; color: var(--muted2); cursor: pointer; padding: 4px; font-size: 16px; display: flex; align-items: center; }
+
+/* ── TRIP DETAIL VIEW ── */
+.detail-header { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top) + 16px) 0 16px; }
+.back-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.back-btn svg { width: 18px; height: 18px; stroke: var(--muted); }
+.detail-title { flex: 1; font-size: 18px; font-weight: 600; }
+.detail-total { font-size: 18px; font-weight: 600; color: var(--green); }
+.detail-date-group { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 6px; }
+
+/* ── CATEGORY EDITOR ── */
+.editor-header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 16px) 0 16px; }
+.editor-title { font-size: 22px; font-weight: 600; }
+.editor-cat-block { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 12px; }
+.editor-cat-row { padding: 13px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.editor-cat-name { flex: 1; font-size: 15px; font-weight: 500; }
+.editor-subs { padding: 12px 16px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.editor-chip { display: flex; align-items: center; gap: 5px; padding: 6px 8px 6px 12px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface2); font-size: 13px; color: var(--text); }
+.editor-chip.is-other { opacity: .45; }
+.chip-del { background: none; border: none; cursor: pointer; color: var(--muted2); font-size: 14px; padding: 0; line-height: 1; display: flex; align-items: center; }
+.chip-del:hover { color: var(--danger); }
+.add-sub-btn { padding: 6px 12px; border-radius: 30px; border: 1px dashed var(--muted2); background: transparent; font-size: 13px; color: var(--muted); cursor: pointer; font-family: var(--font); }
+.new-sub-input { padding: 6px 10px; border-radius: 30px; border: 1px solid var(--green-border); background: var(--surface2); font-size: 13px; color: var(--text); font-family: var(--font); outline: none; width: 130px; }
+.confirm-sub-btn { padding: 6px 12px; border-radius: 30px; border: none; background: var(--green); font-size: 12px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); }
+.cancel-sub-btn { padding: 6px 10px; border-radius: 30px; border: 1px solid var(--border); background: transparent; font-size: 12px; color: var(--muted); cursor: pointer; font-family: var(--font); }
+
+/* ── EMPTY STATE ── */
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
 </style>
 </head>
 <body>
-<div id="app"></div>
+
+<!-- MODALS -->
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-add" onclick="showPage('add',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Add
+  </button>
+  <button class="nav-btn" id="nav-summary" onclick="showPage('summary',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Summary
+  </button>
+  <button class="nav-btn" id="nav-history" onclick="showPage('history',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+    History
+  </button>
+</nav>
+
+<!-- ADD PAGE -->
+<div class="page active" id="page-add">
+  <div class="top-bar">
+    <div>
+      <h1>Today</h1>
+      <div class="sub" id="add-date-label"></div>
+    </div>
+    <div class="top-right">
+      <div class="today-total" id="today-total">฿0</div>
+      <div class="sub" id="today-count"></div>
+    </div>
+  </div>
+
+  <!-- Travel Banner -->
+  <div id="travel-banner"></div>
+
+  <!-- Amount Card -->
+  <div class="amount-card" onclick="focusAmount()">
+    <div class="amount-display" id="amount-display">
+      <span class="placeholder" id="amount-placeholder">0</span>
+      <span class="cursor" id="amount-cursor" style="display:none"></span>
+    </div>
+    <input class="amount-input-real" id="amount-input" type="number" inputmode="decimal" min="0" step="any" />
+  </div>
+
+  <!-- Category -->
+  <div class="amount-card" style="padding:18px 18px 16px">
+    <div class="section-label">Category</div>
+    <div class="pills-scroll" id="cat-pills"></div>
+    <div class="sub-area">
+      <div class="section-label">Sub-category</div>
+      <div class="sub-pills-scroll" id="sub-pills"></div>
+    </div>
+    <input class="text-input" id="note-input" type="text" placeholder="Short note (optional)" maxlength="60"/>
+    <input class="text-input" id="date-input" type="date"/>
+    <button class="save-btn" onclick="saveExpense()">Save Expense</button>
+  </div>
+</div>
+
+<!-- SUMMARY PAGE -->
+<div class="page" id="page-summary">
+  <div class="page-header">
+    <h2>Summary</h2>
+    <div class="month-label" id="summary-month-label"></div>
+  </div>
+  <div id="summary-content"></div>
+</div>
+
+<!-- HISTORY PAGE -->
+<div class="page" id="page-history">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="page-header" style="padding-right:0">
+      <h2>History</h2>
+      <div class="month-label">All entries</div>
+    </div>
+    <button onclick="openEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:30px;padding:8px 14px;color:var(--muted);font-size:12px;font-family:var(--font);cursor:pointer;margin-top:calc(env(safe-area-inset-top) + 20px)">Edit categories</button>
+  </div>
+  <div id="history-content"></div>
+  <div id="past-trips-section"></div>
+</div>
+
+<!-- TRIP DETAIL VIEW (hidden page) -->
+<div class="page" id="page-trip-detail">
+  <div id="trip-detail-content"></div>
+</div>
+
+<!-- CATEGORY EDITOR VIEW (hidden page) -->
+<div class="page" id="page-editor">
+  <div class="editor-header">
+    <span class="editor-title">Sub-categories</span>
+    <button class="btn-sec" onclick="closeEditor()" style="padding:8px 16px;font-size:13px">Done</button>
+  </div>
+  <div id="editor-content"></div>
+</div>
 
 <script>
+// ── DEFAULT DATA ──
 const DEFAULT_CATS = [
-  {id:'food',label:'Food',icon:'ti-tools-kitchen-2',color:'#EF9F27',bg:'#FAEEDA',subs:['Meal','Drink','Snack','Other']},
-  {id:'transport',label:'Transport',icon:'ti-car',color:'#5DCAA5',bg:'#E1F5EE',subs:['BTS','Grab','Gas','Other']},
-  {id:'shopping',label:'Shopping',icon:'ti-shopping-bag',color:'#85B7EB',bg:'#E6F1FB',subs:['Skin care','Clothes','Gadget','Movie','Other']},
-  {id:'health',label:'Health',icon:'ti-heart-rate-monitor',color:'#ED93B1',bg:'#FBEAF0',subs:['Badminton','Fitness','Other']},
-  {id:'bills',label:'Bills',icon:'ti-receipt',color:'#AFA9EC',bg:'#EEEDFE',subs:['Internet','Entertainment','Other']},
-  {id:'other',label:'Other',icon:'ti-dots',color:'#B4B2A9',bg:'#F1EFE8',subs:['Other']},
+  {id:'food',       label:'Food',           subs:['Meal','Drinks','Desserts','Snacks','Other']},
+  {id:'transport',  label:'Transportation', subs:['BTS/MRT','Grab','Other']},
+  {id:'bills',      label:'Bills',          subs:['Internet','Entertainment','Other']},
+  {id:'shopping',   label:'Shopping',       subs:['Clothes','Skincare','Miscellaneous','Other']},
+  {id:'activities', label:'Activities',     subs:['Sports','Movie','Tickets','Other']},
+  {id:'other',      label:'Other',          subs:['Other']},
 ];
 
-function loadCats(){ try{ const s=localStorage.getItem('categories'); return s?JSON.parse(s):null; }catch{ return null; } }
-function saveCats(c){ try{ localStorage.setItem('categories',JSON.stringify(c)); }catch{} }
-function getCats(){ return loadCats()||DEFAULT_CATS; }
-function dayKey(){ const d=new Date(); return `exp_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`; }
-function loadEntries(){ try{ return JSON.parse(localStorage.getItem(dayKey())||'[]'); }catch{ return []; } }
-function saveEntries(e){ try{ localStorage.setItem(dayKey(),JSON.stringify(e)); }catch{} }
-function loadTrips(){ try{ return JSON.parse(localStorage.getItem('all_trips')||'[]'); }catch{ return []; } }
-function saveTrips(t){ try{ localStorage.setItem('all_trips',JSON.stringify(t)); }catch{} }
-function loadActive(){ try{ return JSON.parse(localStorage.getItem('active_trip')||'null'); }catch{ return null; } }
-function saveActive(t){ try{ localStorage.setItem('active_trip',JSON.stringify(t)); }catch{} }
-
-const S = { selCat:'food', selSub:'Meal', tripMode:false, tripName:'', tripStart:null, tripId:null, modal:null, viewTripId:null, showEditor:false, addingSubFor:null };
-
-(function init(){ const at=loadActive(); if(at){ S.tripMode=true; S.tripName=at.name; S.tripStart=at.start; S.tripId=at.id; } })();
-
-function catById(id){ return getCats().find(c=>c.id===id)||(getCats()[5]||DEFAULT_CATS[5]); }
-function fmtN(n){ return Math.round(n).toLocaleString('th-TH'); }
-function fmtTime(ts){ return new Date(ts).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
-function fmtDate(ts){ return new Date(ts).toLocaleDateString('th-TH',{month:'short',day:'numeric'}); }
-
-function selectCat(id){ S.selCat=id; S.selSub=catById(id).subs[0]; render(); }
-function selectSub(s){ S.selSub=s; render(); }
-
-function addEntry(){
-  const ai=document.getElementById('amt-in');
-  const ni=document.getElementById('note-in');
-  if(!ai) return;
-  const amt=parseFloat(ai.value);
-  if(!amt||amt<=0){ ai.focus(); return; }
-  const entries=loadEntries();
-  entries.push({amt,note:(ni?ni.value.trim():''),cat:S.selCat,sub:S.selSub,ts:Date.now(),tripId:S.tripMode?S.tripId:null});
-  saveEntries(entries);
-  ai.value=''; if(ni) ni.value='';
-  ai.focus();
-  render();
-}
-
-function delEntry(ts){ saveEntries(loadEntries().filter(e=>e.ts!==ts)); render(); }
-
-function startTrip(name){
-  const id=Date.now();
-  S.tripMode=true; S.tripName=name; S.tripStart=Date.now(); S.tripId=id;
-  saveActive({name,start:S.tripStart,id}); S.modal=null; render();
-}
-function endTrip(){
-  const entries=loadEntries().filter(e=>e.tripId===S.tripId);
-  const total=entries.reduce((s,e)=>s+e.amt,0);
-  const trips=loadTrips();
-  trips.push({id:S.tripId,name:S.tripName,start:S.tripStart,end:Date.now(),total,count:entries.length});
-  saveTrips(trips); saveActive(null);
-  S.tripMode=false; S.tripName=''; S.tripStart=null; S.tripId=null; S.modal=null; render();
-}
-function delTrip(id,ev){
-  ev.stopPropagation();
-  if(S.viewTripId===id) S.viewTripId=null;
-  saveTrips(loadTrips().filter(t=>t.id!==id)); render();
-}
-function viewTrip(id){ S.viewTripId=(S.viewTripId===id?null:id); render(); }
-
-function deleteSub(catId,subName){
-  const cats=getCats(); const cat=cats.find(c=>c.id===catId);
-  if(!cat||subName==='Other') return;
-  cat.subs=cat.subs.filter(s=>s!==subName); saveCats(cats);
-  if(S.selCat===catId&&S.selSub===subName) S.selSub=cat.subs[0]||'Other';
-  render();
-}
-function addSubConfirm(catId){
-  const el=document.getElementById('new-sub-in'); if(!el) return;
-  const val=el.value.trim(); if(!val) return;
-  const cats=getCats(); const cat=cats.find(c=>c.id===catId); if(!cat) return;
-  if(!cat.subs.includes(val)){ const idx=cat.subs.indexOf('Other'); if(idx>=0) cat.subs.splice(idx,0,val); else cat.subs.push(val); }
-  saveCats(cats); S.addingSubFor=null; render();
-}
-function doStartTrip(){ const el=document.getElementById('trip-name-in'); startTrip((el&&el.value.trim())||'My trip'); }
-
-function render(){
-  const app=document.getElementById('app');
-  if(S.showEditor){ app.innerHTML=renderEditor(getCats()); bindEditorEvents(); return; }
-  if(S.viewTripId){ app.innerHTML=renderTripDetail(S.viewTripId); bindDetailEvents(); return; }
-
-  const entries=loadEntries();
-  const trips=loadTrips().slice().reverse();
-  const total=entries.reduce((s,e)=>s+e.amt,0);
-  const cats=getCats(); const cat=catById(S.selCat);
-  const now=new Date();
-  const dateStr=now.toLocaleDateString('th-TH',{weekday:'short',month:'short',day:'numeric'});
-  let h=`<div class="screen">`;
-  h+=`<div class="header"><h1>Today</h1><div class="hdr-right"><span class="hdr-date">${dateStr}</span><button class="icon-btn" onclick="S.showEditor=true;render()" aria-label="Edit categories"><i class="ti ti-adjustments-horizontal"></i></button></div></div>`;
-
-  if(S.modal==='trip-start'){
-    h+=`<div class="modal-bg"><div class="modal"><h3>Start a trip</h3><p>Name this trip to track expenses separately</p><input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="40" /><div class="modal-btns"><button class="btn-sec" onclick="S.modal=null;render()">Cancel</button><button class="btn-pri" onclick="doStartTrip()">Start trip</button></div></div></div>`;
-  }
-  if(S.modal==='trip-end'){
-    const tt=loadEntries().filter(e=>e.tripId===S.tripId).reduce((s,e)=>s+e.amt,0);
-    const tc=loadEntries().filter(e=>e.tripId===S.tripId).length;
-    h+=`<div class="modal-bg"><div class="modal"><h3>End "${S.tripName}"?</h3><p>Today: ฿${fmtN(tt)} · ${tc} expense${tc!==1?'s':''}. The trip will be saved.</p><div class="modal-btns"><button class="btn-sec" onclick="S.modal=null;render()">Keep going</button><button class="btn-pri" onclick="endTrip()">End &amp; save</button></div></div></div>`;
-  }
-
-  if(S.tripMode){
-    const tt=loadEntries().filter(e=>e.tripId===S.tripId).reduce((s,e)=>s+e.amt,0);
-    h+=`<div class="trip-banner"><div class="trip-dot"></div><div class="trip-info"><div class="trip-name-txt"><i class="ti ti-plane" style="font-size:13px;margin-right:4px"></i>${S.tripName}</div><div class="trip-sub">On travel · today ฿${fmtN(tt)}</div></div><button class="trip-toggle" onclick="S.modal='trip-end';render()">End trip</button></div>`;
-  } else {
-    h+=`<div class="trip-banner off"><div class="trip-dot off"></div><div class="trip-info"><div class="trip-name-txt off">Travel mode off</div><div class="trip-sub off">Tap to start a trip</div></div><button class="trip-toggle off" onclick="S.modal='trip-start';render()">Start trip</button></div>`;
-  }
-
-  h+=`<div class="total-bar${S.tripMode?' trip':''}"><div class="total-label${S.tripMode?' trip':''}">Total today</div><div class="total-amt">฿${fmtN(total)}</div><div class="total-count">${entries.length===0?'No expenses yet':entries.length+' expense'+(entries.length>1?'s':'')}</div></div>`;
-  h+=`<div class="add-card"><div class="amt-row"><span class="cur">฿</span><input class="amt-in-real" id="amt-in" type="number" inputmode="decimal" placeholder="0" min="0" /></div><input class="note-in" id="note-in" type="text" placeholder="Note (optional)" maxlength="60" /><div class="cat-row">${cats.map(c=>`<button class="cat-btn${c.id===S.selCat?' active':''}" onmousedown="event.preventDefault()" onclick="selectCat('${c.id}')"><i class="ti ${c.icon}"></i>${c.label}</button>`).join('')}</div><div class="sub-row">${cat.subs.map(s=>`<button class="sub-btn${s===S.selSub?' active':''}" onmousedown="event.preventDefault()" onclick="selectSub('${s}')">${s}</button>`).join('')}</div><button class="add-btn" onclick="addEntry()">Add expense</button></div>`;
-
-  if(entries.length>0){
-    h+=`<div class="sec-title">Today's entries</div><div class="entries-card">`;
-    [...entries].reverse().forEach(e=>{
-      const c=catById(e.cat);
-      const tripName=e.tripId?(S.tripMode&&e.tripId===S.tripId?S.tripName:(loadTrips().find(t=>t.id===e.tripId)||{name:'trip'}).name):'';
-      const tb=e.tripId?`<span class="trip-badge"><i class="ti ti-plane" style="font-size:9px"></i> ${tripName}</span>`:'';
-      h+=`<div class="entry"><div class="cat-ic" style="background:${c.bg}"><i class="ti ${c.icon}" style="color:${c.color};font-size:16px"></i></div><div class="e-info"><div class="e-note">${e.note||e.sub||c.label}${tb}</div><div class="e-meta">${c.label} › ${e.sub} · ${fmtTime(e.ts)}</div></div><div class="e-amt">฿${fmtN(e.amt)}</div><button class="del-btn" onclick="delEntry(${e.ts})"><i class="ti ti-x"></i></button></div>`;
-    });
-    h+=`</div>`;
-  }
-
-  if(trips.length>0){
-    h+=`<div class="past-trips"><div class="sec-title" style="padding:0 0 8px">Past trips</div>`;
-    trips.forEach(t=>{
-      h+=`<div class="past-trip-card" onclick="viewTrip(${t.id})"><div class="pt-header"><span class="pt-name"><i class="ti ti-plane" style="font-size:13px"></i>${t.name}<i class="ti ti-chevron-right" style="font-size:12px;color:var(--color-text-tertiary)"></i></span><div class="pt-right"><span class="pt-total">฿${fmtN(t.total)}</span><button class="pt-del" onclick="delTrip(${t.id},event)"><i class="ti ti-trash"></i></button></div></div><div class="pt-meta">${fmtDate(t.start)} · ${t.count} expense${t.count!==1?'s':''}</div></div>`;
-    });
-    h+=`</div>`;
-  }
-  h+=`</div>`;
-  app.innerHTML=h;
-
-  const ai=document.getElementById('amt-in');
-  if(ai) ai.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const ni=document.getElementById('note-in'); if(ni) ni.focus(); } });
-  const ni=document.getElementById('note-in');
-  if(ni) ni.addEventListener('keydown',e=>{ if(e.key==='Enter') addEntry(); });
-  const ti=document.getElementById('trip-name-in');
-  if(ti){ ti.focus(); ti.addEventListener('keydown',e=>{ if(e.key==='Enter') doStartTrip(); }); }
-}
-
-function renderTripDetail(tripId){
-  const trips=loadTrips(); const trip=trips.find(t=>t.id===tripId);
-  if(!trip) return '<div style="padding:20px 16px;color:var(--color-text-secondary)">Trip not found.</div>';
-  const allEntries=[];
-  for(let i=0;i<localStorage.length;i++){
-    const k=localStorage.key(i);
-    if(k&&k.startsWith('exp_')){ try{ JSON.parse(localStorage.getItem(k)||'[]').forEach(e=>{ if(e.tripId===tripId) allEntries.push(e); }); }catch{} }
-  }
-  allEntries.sort((a,b)=>a.ts-b.ts);
-  const total=allEntries.reduce((s,e)=>s+e.amt,0);
-  let h=`<div style="max-width:430px;margin:0 auto;padding:0 0 60px;font-family:var(--font-sans)"><div class="trip-detail"><div class="td-header"><button class="td-back" id="td-back"><i class="ti ti-arrow-left"></i></button><div class="td-title"><i class="ti ti-plane" style="font-size:14px;margin-right:6px"></i>${trip.name}</div><span class="td-total">฿${fmtN(total)}</span></div>`;
-  if(allEntries.length===0){
-    h+=`<div style="padding:24px 16px;text-align:center;color:var(--color-text-tertiary);font-size:14px">No entries found.</div>`;
-  } else {
-    let lastDate='';
-    allEntries.forEach(e=>{
-      const c=catById(e.cat); const d=fmtDate(e.ts);
-      if(d!==lastDate){ if(lastDate) h+=`</div>`; h+=`<div style="padding:8px 14px 4px;font-size:11px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;background:var(--color-background-secondary)">${d}</div><div>`; lastDate=d; }
-      h+=`<div class="entry"><div class="cat-ic" style="background:${c.bg}"><i class="ti ${c.icon}" style="color:${c.color};font-size:16px"></i></div><div class="e-info"><div class="e-note">${e.note||e.sub||c.label}</div><div class="e-meta">${c.label} › ${e.sub} · ${fmtTime(e.ts)}</div></div><div class="e-amt">฿${fmtN(e.amt)}</div></div>`;
-    });
-    if(lastDate) h+=`</div>`;
-  }
-  h+=`</div></div>`;
-  return h;
-}
-
-function bindDetailEvents(){
-  const b=document.getElementById('td-back');
-  if(b) b.addEventListener('click',()=>{ S.viewTripId=null; render(); });
-}
-
-function renderEditor(cats){
-  let h=`<div class="cat-editor"><div class="ce-header"><span class="ce-title">Sub-categories</span><button class="ce-back" id="editor-back"><i class="ti ti-arrow-left" style="font-size:15px"></i> Back</button></div>`;
-  cats.forEach(cat=>{
-    h+=`<div class="ce-cat-section"><div class="ce-cat-header"><div class="ce-cat-icon" style="background:${cat.bg}"><i class="ti ${cat.icon}" style="color:${cat.color}"></i></div><span class="ce-cat-name">${cat.label}</span></div><div class="ce-subs">`;
-    cat.subs.forEach(s=>{
-      const isOther=s==='Other';
-      h+=`<div class="ce-sub-chip${isOther?' is-other':''}">${s}${!isOther?`<button class="ce-chip-del" onclick="deleteSub('${cat.id}','${s}')"><i class="ti ti-x"></i></button>`:''}</div>`;
-    });
-    if(S.addingSubFor===cat.id){
-      h+=`<input id="new-sub-in" class="new-sub-in" type="text" placeholder="Name..." maxlength="24" /><button class="ce-add-sub" onclick="addSubConfirm('${cat.id}')">Add</button><button class="ce-add-sub" onclick="S.addingSubFor=null;render()">Cancel</button>`;
-    } else {
-      h+=`<button class="ce-add-sub" onclick="S.addingSubFor='${cat.id}';render()"><i class="ti ti-plus" style="font-size:11px"></i> Add</button>`;
+// ── STORAGE ──
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)||'null'); } catch { return null; } },
+  set: (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} },
+};
+function getCats() { return LS.get('cats_v4') || DEFAULT_CATS; }
+function saveCats(c) { LS.set('cats_v4', c); }
+function getAllExpenses() {
+  const all = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('exp_')) {
+      const arr = LS.get(k) || [];
+      arr.forEach(e => all.push(e));
     }
-    h+=`</div></div>`;
+  }
+  return all.sort((a,b) => b.ts - a.ts);
+}
+function dayKey(dateStr) { return 'exp_' + dateStr.replace(/-/g,'_'); }
+function loadDay(dateStr) { return LS.get(dayKey(dateStr)) || []; }
+function saveDay(dateStr, arr) { LS.set(dayKey(dateStr), arr); }
+function loadTrips() { return LS.get('trips_v4') || []; }
+function saveTrips(t) { LS.set('trips_v4', t); }
+function loadActiveTrip() { return LS.get('active_trip_v4'); }
+function saveActiveTrip(t) { LS.set('active_trip_v4', t); }
+
+// ── STATE ──
+const S = {
+  page: 'add',
+  selCat: null,
+  selSub: null,
+  tripMode: false,
+  tripName: '',
+  tripStart: null,
+  tripId: null,
+  addingSubFor: null,
+  prevPage: null,
+};
+
+function init() {
+  const cats = getCats();
+  S.selCat = cats[0].id;
+  S.selSub = cats[0].subs[0];
+  const at = loadActiveTrip();
+  if (at) { S.tripMode = true; S.tripName = at.name; S.tripStart = at.start; S.tripId = at.id; }
+  const today = todayStr();
+  document.getElementById('date-input').value = today;
+  document.getElementById('add-date-label').textContent = fmtDateLong(today);
+  document.getElementById('summary-month-label').textContent = fmtMonthLabel();
+  renderAll();
+  setupAmountInput();
+}
+
+// ── HELPERS ──
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtN(n) { return Math.round(n).toLocaleString('th-TH'); }
+function fmtTime(ts) { return new Date(ts).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
+function fmtDateShort(str) {
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('th-TH',{month:'short',day:'numeric'});
+}
+function fmtDateLong(str) {
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('th-TH',{weekday:'long',month:'long',day:'numeric'});
+}
+function fmtMonthLabel() {
+  return new Date().toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+}
+function catById(id) { return getCats().find(c => c.id === id) || getCats().slice(-1)[0]; }
+
+// ── AMOUNT INPUT ──
+function setupAmountInput() {
+  const inp = document.getElementById('amount-input');
+  inp.addEventListener('input', updateAmountDisplay);
+  inp.addEventListener('focus', () => {
+    document.getElementById('amount-cursor').style.display = '';
   });
-  h+=`</div>`;
-  return h;
+  inp.addEventListener('blur', () => {
+    document.getElementById('amount-cursor').style.display = 'none';
+  });
+}
+function focusAmount() {
+  document.getElementById('amount-input').focus();
+  updateAmountDisplay();
+}
+function updateAmountDisplay() {
+  const inp = document.getElementById('amount-input');
+  const disp = document.getElementById('amount-display');
+  const placeholder = document.getElementById('amount-placeholder');
+  const val = inp.value;
+  if (val && parseFloat(val) > 0) {
+    placeholder.textContent = '฿' + parseFloat(val).toLocaleString('th-TH', {maximumFractionDigits:2});
+    placeholder.className = '';
+  } else {
+    placeholder.textContent = '0';
+    placeholder.className = 'placeholder';
+  }
 }
 
-function bindEditorEvents(){
-  const b=document.getElementById('editor-back');
-  if(b) b.addEventListener('click',()=>{ S.showEditor=false; S.addingSubFor=null; render(); });
-  const ni=document.getElementById('new-sub-in');
-  if(ni){ ni.focus(); ni.addEventListener('keydown',e=>{ if(e.key==='Enter'&&S.addingSubFor) addSubConfirm(S.addingSubFor); if(e.key==='Escape'){ S.addingSubFor=null; render(); } }); }
+// ── RENDER ALL ──
+function renderAll() {
+  renderTravelBanner();
+  renderCatPills();
+  renderSubPills();
+  renderTodayTotal();
 }
 
-render();
+function renderTodayTotal() {
+  const today = todayStr();
+  const entries = loadDay(today);
+  const total = entries.reduce((s,e) => s+e.amount, 0);
+  document.getElementById('today-total').textContent = '฿' + fmtN(total);
+  const cnt = entries.length;
+  document.getElementById('today-count').textContent = cnt === 0 ? '' : cnt + ' expense' + (cnt>1?'s':'');
+}
+
+function renderTravelBanner() {
+  const el = document.getElementById('travel-banner');
+  if (S.tripMode) {
+    const todayAmt = getAllExpenses().filter(e => e.tripId === S.tripId).reduce((s,e) => s+e.amount, 0);
+    el.innerHTML = `<div class="travel-banner">
+      <div class="travel-dot"></div>
+      <div class="travel-info">
+        <div class="travel-name">✈ ${S.tripName}</div>
+        <div class="travel-meta">On travel · trip total ฿${fmtN(todayAmt)}</div>
+      </div>
+      <button class="travel-btn" onclick="openModal('trip-end')">End trip</button>
+    </div>`;
+  } else {
+    el.innerHTML = `<div class="travel-banner off">
+      <div class="travel-dot off"></div>
+      <div class="travel-info">
+        <div class="travel-name off">Travel mode off</div>
+        <div class="travel-meta">Tap to start tracking a trip</div>
+      </div>
+      <button class="travel-btn off" onclick="openModal('trip-start')">Start trip</button>
+    </div>`;
+  }
+}
+
+function renderCatPills() {
+  const cats = getCats();
+  const el = document.getElementById('cat-pills');
+  el.innerHTML = cats.map(c =>
+    `<button class="pill${c.id===S.selCat?' active':''}" onmousedown="event.preventDefault()" onclick="selectCat('${c.id}')">${c.label}</button>`
+  ).join('');
+}
+
+function renderSubPills() {
+  const cat = catById(S.selCat);
+  const el = document.getElementById('sub-pills');
+  el.innerHTML = cat.subs.map(s =>
+    `<button class="sub-pill${s===S.selSub?' active':''}" onmousedown="event.preventDefault()" onclick="selectSub('${s}')">${s}</button>`
+  ).join('');
+}
+
+function selectCat(id) {
+  S.selCat = id;
+  S.selSub = catById(id).subs[0];
+  renderCatPills();
+  renderSubPills();
+}
+function selectSub(s) { S.selSub = s; renderSubPills(); }
+
+// ── SAVE EXPENSE ──
+function saveExpense() {
+  const inp = document.getElementById('amount-input');
+  const amt = parseFloat(inp.value);
+  if (!amt || amt <= 0) { focusAmount(); return; }
+  const note = document.getElementById('note-input').value.trim();
+  const date = document.getElementById('date-input').value || todayStr();
+  const arr = loadDay(date);
+  arr.unshift({ amount: amt, category: S.selCat, subcategory: S.selSub, note, date, ts: Date.now(), tripId: S.tripMode ? S.tripId : null });
+  saveDay(date, arr);
+  inp.value = '';
+  document.getElementById('note-input').value = '';
+  document.getElementById('date-input').value = todayStr();
+  updateAmountDisplay();
+  renderAll();
+  // pulse feedback
+  const btn = document.querySelector('.save-btn');
+  btn.textContent = '✓ Saved';
+  setTimeout(() => { btn.textContent = 'Save Expense'; }, 1200);
+  if (document.getElementById('page-summary').classList.contains('active')) renderSummary();
+  if (document.getElementById('page-history').classList.contains('active')) renderHistory();
+}
+
+// ── SUMMARY ──
+function renderSummary() {
+  const el = document.getElementById('summary-content');
+  const month = todayStr().slice(0,7);
+  const all = getAllExpenses().filter(e => e.date && e.date.startsWith(month));
+  const total = all.reduce((s,e) => s+e.amount, 0);
+  const cnt = all.length;
+
+  if (cnt === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div>No expenses this month yet.</div>`;
+    return;
+  }
+
+  const bycat = {};
+  all.forEach(e => { bycat[e.category] = (bycat[e.category]||0) + e.amount; });
+  const max = Math.max(...Object.values(bycat));
+
+  let h = `<div class="summary-total-block">
+    <div class="summary-total-label">This month</div>
+    <div class="summary-total-amt">฿${fmtN(total)}</div>
+    <div class="summary-total-count">${cnt} expense${cnt!==1?'s':''}</div>
+  </div>`;
+
+  Object.entries(bycat).sort((a,b) => b[1]-a[1]).forEach(([catId, amt]) => {
+    const cat = catById(catId);
+    const pct = Math.round((amt/total)*100);
+    const barW = Math.round((amt/max)*100);
+    h += `<div class="summary-card">
+      <div class="summary-row"><span class="summary-cat">${cat.label}</span><span class="summary-amt">฿${fmtN(amt)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${barW}%"></div></div>
+      <div class="summary-pct">${pct}% of total</div>
+    </div>`;
+  });
+
+  el.innerHTML = h;
+}
+
+// ── HISTORY ──
+function renderHistory() {
+  const el = document.getElementById('history-content');
+  const trips_el = document.getElementById('past-trips-section');
+  const all = getAllExpenses();
+
+  if (all.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>No expenses yet.<br>Add your first one!</div>`;
+    trips_el.innerHTML = '';
+    return;
+  }
+
+  // group by date
+  const byDate = {};
+  all.forEach(e => { (byDate[e.date] = byDate[e.date]||[]).push(e); });
+
+  let h = '';
+  Object.entries(byDate).sort((a,b) => b[0].localeCompare(a[0])).forEach(([date, items]) => {
+    const dayTotal = items.reduce((s,e) => s+e.amount, 0);
+    h += `<div class="history-group-label">${fmtDateShort(date)} · ฿${fmtN(dayTotal)}</div><div class="history-card">`;
+    items.forEach(e => {
+      const cat = catById(e.category);
+      const tripName = e.tripId ? getTripName(e.tripId) : '';
+      const tb = tripName ? `<span class="trip-tag">✈ ${tripName}</span>` : '';
+      h += `<div class="history-item">
+        <div class="h-info">
+          <div class="h-cat">${e.note || e.subcategory || cat.label}${tb}</div>
+          <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
+        </div>
+        <div class="h-amt">฿${fmtN(e.amount)}</div>
+        <button class="h-del" onclick="deleteExpense(${e.ts},'${e.date}')">×</button>
+      </div>`;
+    });
+    h += `</div>`;
+  });
+  el.innerHTML = h;
+
+  // Past trips
+  const trips = loadTrips().slice().reverse();
+  if (trips.length === 0) { trips_el.innerHTML = ''; return; }
+  let th = `<div class="past-trips-section"><div class="history-group-label" style="margin-top:24px">Past trips</div>`;
+  trips.forEach(t => {
+    th += `<div class="trip-card" onclick="viewTrip(${t.id})">
+      <div class="trip-card-header">
+        <span class="trip-card-name">✈ ${t.name}</span>
+        <div class="trip-card-right">
+          <span class="trip-card-total">฿${fmtN(t.total)}</span>
+          <button class="trip-del-btn" onclick="deleteTrip(${t.id},event)">×</button>
+        </div>
+      </div>
+      <div class="trip-card-meta">${fmtDateShort(new Date(t.start).toISOString().slice(0,10))} · ${t.count} expense${t.count!==1?'s':''}</div>
+    </div>`;
+  });
+  th += `</div>`;
+  trips_el.innerHTML = th;
+}
+
+function getTripName(tripId) {
+  if (S.tripMode && tripId === S.tripId) return S.tripName;
+  const t = loadTrips().find(t => t.id === tripId);
+  return t ? t.name : 'trip';
+}
+
+function deleteExpense(ts, date) {
+  const arr = loadDay(date).filter(e => e.ts !== ts);
+  saveDay(date, arr);
+  renderTodayTotal();
+  renderTravelBanner();
+  renderHistory();
+  if (document.getElementById('page-summary').classList.contains('active')) renderSummary();
+}
+
+function deleteTrip(id, ev) {
+  ev.stopPropagation();
+  saveTrips(loadTrips().filter(t => t.id !== id));
+  renderHistory();
+}
+
+function viewTrip(tripId) {
+  const trips = loadTrips();
+  const trip = trips.find(t => t.id === tripId);
+  if (!trip) return;
+  const all = getAllExpenses().filter(e => e.tripId === tripId);
+  all.sort((a,b) => a.ts - b.ts);
+  const total = all.reduce((s,e) => s+e.amount, 0);
+
+  let h = `<div class="detail-header">
+    <button class="back-btn" onclick="closeDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="detail-title">✈ ${trip.name}</div>
+    <div class="detail-total">฿${fmtN(total)}</div>
+  </div>`;
+
+  if (all.length === 0) {
+    h += `<div class="empty">No entries for this trip.</div>`;
+  } else {
+    const byDate = {};
+    all.forEach(e => { (byDate[e.date] = byDate[e.date]||[]).push(e); });
+    Object.entries(byDate).sort((a,b) => a[0].localeCompare(b[0])).forEach(([date, items]) => {
+      h += `<div class="detail-date-group">${fmtDateShort(date)}</div><div class="history-card">`;
+      items.forEach(e => {
+        const cat = catById(e.category);
+        h += `<div class="history-item">
+          <div class="h-info">
+            <div class="h-cat">${e.note || e.subcategory || cat.label}</div>
+            <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
+          </div>
+          <div class="h-amt">฿${fmtN(e.amount)}</div>
+        </div>`;
+      });
+      h += `</div>`;
+    });
+  }
+
+  document.getElementById('trip-detail-content').innerHTML = h;
+  S.prevPage = S.page;
+  showPage('trip-detail', null);
+}
+
+function closeDetail() {
+  showPage(S.prevPage || 'history', document.getElementById('nav-' + (S.prevPage||'history')));
+}
+
+// ── CATEGORY EDITOR ──
+function openEditor() {
+  S.addingSubFor = null;
+  renderEditor();
+  S.prevPage = S.page;
+  showPage('editor', null);
+}
+function closeEditor() {
+  renderCatPills();
+  renderSubPills();
+  showPage(S.prevPage || 'history', document.getElementById('nav-' + (S.prevPage||'history')));
+}
+function renderEditor() {
+  const cats = getCats();
+  let h = '';
+  cats.forEach(cat => {
+    h += `<div class="editor-cat-block"><div class="editor-cat-row"><div class="editor-cat-name">${cat.label}</div></div><div class="editor-subs">`;
+    cat.subs.forEach(s => {
+      const isOther = s === 'Other';
+      h += `<div class="editor-chip${isOther?' is-other':''}">${s}`;
+      if (!isOther) h += `<button class="chip-del" onclick="deleteSub('${cat.id}','${s}')">×</button>`;
+      h += `</div>`;
+    });
+    if (S.addingSubFor === cat.id) {
+      h += `<input id="new-sub-in" class="new-sub-input" type="text" placeholder="Name…" maxlength="24"/>
+            <button class="confirm-sub-btn" onclick="confirmAddSub('${cat.id}')">Add</button>
+            <button class="cancel-sub-btn" onclick="S.addingSubFor=null;renderEditor()">✕</button>`;
+    } else {
+      h += `<button class="add-sub-btn" onclick="S.addingSubFor='${cat.id}';renderEditor()">+ Add</button>`;
+    }
+    h += `</div></div>`;
+  });
+  document.getElementById('editor-content').innerHTML = h;
+  if (S.addingSubFor) {
+    const inp = document.getElementById('new-sub-in');
+    if (inp) { inp.focus(); inp.onkeydown = e => { if(e.key==='Enter') confirmAddSub(S.addingSubFor); if(e.key==='Escape'){S.addingSubFor=null;renderEditor();} }; }
+  }
+}
+function deleteSub(catId, sub) {
+  const cats = getCats();
+  const cat = cats.find(c => c.id === catId);
+  if (!cat || sub === 'Other') return;
+  cat.subs = cat.subs.filter(s => s !== sub);
+  saveCats(cats);
+  if (S.selCat === catId && S.selSub === sub) S.selSub = cat.subs[0] || 'Other';
+  renderEditor();
+}
+function confirmAddSub(catId) {
+  const inp = document.getElementById('new-sub-in');
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (!val) return;
+  const cats = getCats();
+  const cat = cats.find(c => c.id === catId);
+  if (!cat || cat.subs.includes(val)) return;
+  const idx = cat.subs.indexOf('Other');
+  if (idx >= 0) cat.subs.splice(idx, 0, val); else cat.subs.push(val);
+  saveCats(cats);
+  S.addingSubFor = null;
+  renderEditor();
+}
+
+// ── MODALS ──
+function openModal(type) {
+  const overlay = document.getElementById('modal-overlay');
+  const box = document.getElementById('modal-box');
+  overlay.classList.remove('hidden');
+  if (type === 'trip-start') {
+    box.innerHTML = `<h3>Start a trip</h3><p>Name this trip to group its expenses separately.</p>
+      <input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="40"/>
+      <div class="modal-btns">
+        <button class="btn-sec" onclick="closeModal()">Cancel</button>
+        <button class="btn-pri" onclick="doStartTrip()">Start</button>
+      </div>`;
+    setTimeout(() => {
+      const inp = document.getElementById('trip-name-in');
+      if (inp) { inp.focus(); inp.onkeydown = e => { if(e.key==='Enter') doStartTrip(); }; }
+    }, 50);
+  } else if (type === 'trip-end') {
+    const tripEntries = getAllExpenses().filter(e => e.tripId === S.tripId);
+    const total = tripEntries.reduce((s,e) => s+e.amount, 0);
+    box.innerHTML = `<h3>End trip?</h3><p>"${S.tripName}"<br>${tripEntries.length} expense${tripEntries.length!==1?'s':''} · ฿${fmtN(total)} total.<br>This trip will be saved to history.</p>
+      <div class="modal-btns">
+        <button class="btn-sec" onclick="closeModal()">Keep going</button>
+        <button class="btn-pri" onclick="doEndTrip()">End & save</button>
+      </div>`;
+  }
+}
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function doStartTrip() {
+  const inp = document.getElementById('trip-name-in');
+  const name = (inp && inp.value.trim()) || 'My trip';
+  const id = Date.now();
+  S.tripMode = true; S.tripName = name; S.tripStart = Date.now(); S.tripId = id;
+  saveActiveTrip({name, start: S.tripStart, id});
+  closeModal(); renderAll();
+}
+function doEndTrip() {
+  const entries = getAllExpenses().filter(e => e.tripId === S.tripId);
+  const total = entries.reduce((s,e) => s+e.amount, 0);
+  const trips = loadTrips();
+  trips.push({id: S.tripId, name: S.tripName, start: S.tripStart, end: Date.now(), total, count: entries.length});
+  saveTrips(trips); saveActiveTrip(null);
+  S.tripMode = false; S.tripName = ''; S.tripStart = null; S.tripId = null;
+  closeModal(); renderAll(); renderHistory();
+}
+
+// ── PAGE SWITCHING ──
+function showPage(pageId, btnEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  S.page = pageId;
+  if (pageId === 'summary') renderSummary();
+  if (pageId === 'history') renderHistory();
+  window.scrollTo(0, 0);
+}
+
+// ── CLOSE MODAL ON OVERLAY CLICK ──
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+init();
 </script>
 </body>
 </html>
