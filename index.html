@@ -286,7 +286,9 @@ const DEFAULT_CATS = [
   {id:'other',      label:'Other',          subs:['Other']},
 ];
 
+
 // ── STORAGE ──
+const STORAGE_VERSION = 5;
 const LS = {
   get: k => { try { return JSON.parse(localStorage.getItem(k)||'null'); } catch { return null; } },
   set: (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} },
@@ -337,6 +339,11 @@ function init() {
   document.getElementById('summary-month-label').textContent = fmtMonthLabel();
   renderAll();
   setupAmountInput();
+  const currentVersion = localStorage.getItem('storage_version');
+
+if (currentVersion !== String(STORAGE_VERSION)) {
+  localStorage.setItem('storage_version', STORAGE_VERSION);
+}
 }
 
 // ── HELPERS ──
@@ -839,28 +846,69 @@ function migrateDataIfNeeded() {
 }
 
 // REPLACE getAllExpenses()
+function normalizeExpense(e) {
+  if (!e || typeof e !== 'object') return null;
+
+  const amount = Number(e.amount);
+
+  return {
+    amount: isNaN(amount) ? 0 : amount,
+    category: e.category || 'other',
+    subcategory: e.subcategory || 'Other',
+    note: e.note || '',
+    date: e.date || todayStr(),
+    ts: Number(e.ts) || Date.now(),
+    tripId: e.tripId || null
+  };
+}
+
 function getAllExpenses() {
   const all = [];
 
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
 
-    if (k && k.startsWith('exp_')) {
-      const arr = LS.get(k) || [];
+    if (!k || !k.startsWith('exp_')) continue;
 
-      arr
-        .filter(Boolean)
-        .map(sanitizeExpense)
-        .forEach(e => all.push(e));
+    try {
+      const raw = localStorage.getItem(k);
+
+      if (!raw) continue;
+
+      const arr = JSON.parse(raw);
+
+      if (!Array.isArray(arr)) continue;
+
+      arr.forEach(item => {
+        const fixed = normalizeExpense(item);
+
+        if (fixed) {
+          all.push(fixed);
+        }
+      });
+
+    } catch (err) {
+      console.error('Broken expense data:', k, err);
     }
   }
 
-  return all.sort((a,b) => (b.ts || 0) - (a.ts || 0));
+  return all.sort((a, b) => b.ts - a.ts);
 }
 
 // REPLACE loadDay()
 function loadDay(dateStr) {
-  return (LS.get(dayKey(dateStr)) || []).map(sanitizeExpense);
+  try {
+    const arr = LS.get(dayKey(dateStr));
+
+    if (!Array.isArray(arr)) return [];
+
+    return arr
+      .map(normalizeExpense)
+      .filter(Boolean);
+
+  } catch {
+    return [];
+  }
 }
 
 // REPLACE fmtN()
