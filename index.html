@@ -468,7 +468,16 @@ function saveExpense() {
   const note = document.getElementById('note-input').value.trim();
   const date = document.getElementById('date-input').value || todayStr();
   const arr = loadDay(date);
-  arr.unshift({ amount: amt, category: S.selCat, subcategory: S.selSub, note, date, ts: Date.now(), tripId: S.tripMode ? S.tripId : null });
+  arr.unshift({
+  id: crypto.randomUUID(),
+  amount: amt,
+  category: S.selCat,
+  subcategory: S.selSub,
+  note,
+  date,
+  ts: Date.now(),
+  tripId: S.tripMode ? S.tripId : null
+});
   saveDay(date, arr);
   inp.value = '';
   document.getElementById('note-input').value = '';
@@ -550,7 +559,7 @@ function renderHistory() {
           <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
         </div>
         <div class="h-amt">฿${fmtN(e.amount)}</div>
-        <button class="h-del" onclick="deleteExpense(${e.ts},'${e.date}')">×</button>
+        <button class="h-del" onclick="deleteExpense('${e.id}','${e.date}')">×</button>
       </div>`;
     });
     h += `</div>`;
@@ -583,13 +592,18 @@ function getTripName(tripId) {
   return t ? t.name : 'trip';
 }
 
-function deleteExpense(ts, date) {
-  const arr = loadDay(date).filter(e => e.ts !== ts);
+function deleteExpense(id, date) {
+  const arr = loadDay(date).filter(e => e.id !== id);
+
   saveDay(date, arr);
+
   renderTodayTotal();
   renderTravelBanner();
   renderHistory();
-  if (document.getElementById('page-summary').classList.contains('active')) renderSummary();
+
+  if (document.getElementById('page-summary').classList.contains('active')) {
+    renderSummary();
+  }
 }
 
 function deleteTrip(id, ev) {
@@ -852,6 +866,7 @@ function normalizeExpense(e) {
   const amount = Number(e.amount);
 
   return {
+    id: e.id || crypto.randomUUID(),
     amount: isNaN(amount) ? 0 : amount,
     category: e.category || 'other',
     subcategory: e.subcategory || 'Other',
