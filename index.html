@@ -763,3 +763,231 @@ init();
 </script>
 </body>
 </html>
+
+<!-- 1. Replace .pills-scroll CSS -->
+<style>
+.pills-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.sub-pills-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-bottom: 2px;
+}
+</style>
+
+<script>
+// ADD BELOW STORAGE HELPERS
+
+const DATA_VERSION = 5;
+
+function sanitizeExpense(e = {}) {
+  const cats = getCats();
+
+  const safeCategory = cats.find(c => c.id === e.category)
+    ? e.category
+    : 'other';
+
+  const safeSub = typeof e.subcategory === 'string' && e.subcategory.trim()
+    ? e.subcategory
+    : 'Other';
+
+  const safeAmount = Number(e.amount);
+
+  const safeDate = typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)
+    ? e.date
+    : todayStr();
+
+  const safeTs = Number(e.ts) || Date.now();
+
+  return {
+    amount: isNaN(safeAmount) ? 0 : safeAmount,
+    category: safeCategory,
+    subcategory: safeSub,
+    note: typeof e.note === 'string' ? e.note : '',
+    date: safeDate,
+    ts: safeTs,
+    tripId: e.tripId || null,
+  };
+}
+
+function migrateDataIfNeeded() {
+  const currentVersion = LS.get('data_version') || 0;
+
+  if (currentVersion >= DATA_VERSION) return;
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+
+    if (k && k.startsWith('exp_')) {
+      const arr = LS.get(k) || [];
+
+      const migrated = arr
+        .filter(Boolean)
+        .map(sanitizeExpense);
+
+      LS.set(k, migrated);
+    }
+  }
+
+  LS.set('data_version', DATA_VERSION);
+}
+
+// REPLACE getAllExpenses()
+function getAllExpenses() {
+  const all = [];
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+
+    if (k && k.startsWith('exp_')) {
+      const arr = LS.get(k) || [];
+
+      arr
+        .filter(Boolean)
+        .map(sanitizeExpense)
+        .forEach(e => all.push(e));
+    }
+  }
+
+  return all.sort((a,b) => (b.ts || 0) - (a.ts || 0));
+}
+
+// REPLACE loadDay()
+function loadDay(dateStr) {
+  return (LS.get(dayKey(dateStr)) || []).map(sanitizeExpense);
+}
+
+// REPLACE fmtN()
+function fmtN(n) {
+  const safe = Number(n) || 0;
+  return Math.round(safe).toLocaleString('th-TH');
+}
+
+// REPLACE fmtDateShort()
+function fmtDateShort(str) {
+  if (!str || typeof str !== 'string') {
+    return 'Unknown date';
+  }
+
+  const d = new Date(str + 'T00:00:00');
+
+  if (isNaN(d.getTime())) {
+    return 'Unknown date';
+  }
+
+  return d.toLocaleDateString('th-TH', {
+    month:'short',
+    day:'numeric'
+  });
+}
+
+// REPLACE fmtTime()
+function fmtTime(ts) {
+  const d = new Date(Number(ts));
+
+  if (isNaN(d.getTime())) {
+    return '--:--';
+  }
+
+  return d.toLocaleTimeString('th-TH', {
+    hour:'2-digit',
+    minute:'2-digit'
+  });
+}
+
+// ADD EDIT FEATURE
+function editExpense(ts, date) {
+  const arr = loadDay(date);
+
+  const idx = arr.findIndex(e => e.ts === ts);
+
+  if (idx === -1) return;
+
+  const exp = arr[idx];
+
+  openEditModal(exp, updated => {
+    arr[idx] = sanitizeExpense({
+      ...exp,
+      ...updated,
+    });
+
+    saveDay(date, arr);
+
+    renderTodayTotal();
+    renderTravelBanner();
+    renderHistory();
+    renderSummary();
+  });
+}
+
+function openEditModal(exp, onSave) {
+  const overlay = document.getElementById('modal-overlay');
+  const box = document.getElementById('modal-box');
+
+  overlay.classList.remove('hidden');
+
+  box.innerHTML = `
+    <h3>Edit expense</h3>
+
+    <input
+      id="edit-amount"
+      type="number"
+      value="${exp.amount}"
+      placeholder="Amount"
+    />
+
+    <input
+      id="edit-note"
+      type="text"
+      value="${exp.note || ''}"
+      placeholder="Note"
+    />
+
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="closeModal()">Cancel</button>
+      <button class="btn-pri" onclick="confirmEditExpense()">Save</button>
+    </div>
+  `;
+
+  window.confirmEditExpense = function() {
+    const amount = Number(document.getElementById('edit-amount').value);
+
+    const note = document
+      .getElementById('edit-note')
+      .value
+      .trim();
+
+    onSave({
+      amount: amount || exp.amount,
+      note,
+    });
+
+    closeModal();
+  };
+}
+
+// IMPORTANT
+// Replace ALL:
+// s + e.amount
+// WITH:
+// s + (Number(e.amount) || 0)
+
+// IMPORTANT
+// Replace delete button with:
+// <button class="h-del" onclick="editExpense(${e.ts}, '${e.date}')">✎</button>
+// <button class="h-del" onclick="deleteExpense(${e.ts}, '${e.date}')">×</button>
+
+// IMPORTANT STARTUP CHANGE
+// Replace:
+// init();
+// with:
+// migrateDataIfNeeded();
+// init();
+</script>
+
