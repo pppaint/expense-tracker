@@ -56,10 +56,10 @@
   --text:      #eeeef4;
   --muted:     #8888aa;
   --hint:      #4a4a66;
-  --accent:    #6c63ff;
-  --accent2:   #9b93ff;
-  --accent-bg: rgba(108,99,255,0.12);
-  --accent-border: rgba(108,99,255,0.3);
+  --accent:    #22c48a;
+  --accent2:   #4dd9a8;
+  --accent-bg: rgba(34,196,138,0.10);
+  --accent-border: rgba(34,196,138,0.30);
   --green:     #22c48a;
   --green-bg:  rgba(34,196,138,0.1);
   --green-border: rgba(34,196,138,0.25);
@@ -98,23 +98,23 @@ body {
 
 /* ── TOP BAR ── */
 .top-bar {
-  padding: calc(var(--safe-top) + 20px) 0 18px;
+  padding: calc(var(--safe-top) + 14px) 0 12px;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
 }
-.top-bar h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.8px; }
-.top-bar .date-sub { font-size: 13px; color: var(--muted); margin-top: 3px; font-weight: 400; }
-.today-total { font-size: 30px; font-weight: 700; color: var(--accent2); letter-spacing: -0.8px; font-family: var(--mono); }
-.today-count { font-size: 12px; color: var(--muted); margin-top: 3px; text-align: right; }
+.top-bar h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.8px; }
+.top-bar .date-sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+.today-total { font-size: 26px; font-weight: 700; color: var(--accent2); letter-spacing: -0.8px; font-family: var(--mono); }
+.today-count { font-size: 12px; color: var(--muted); margin-top: 2px; text-align: right; }
 
 /* ── CARDS ── */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 10px;
+  padding: 14px;
+  margin-bottom: 8px;
   position: relative;
 }
 .card-label {
@@ -123,10 +123,67 @@ body {
   letter-spacing: .1em;
   text-transform: uppercase;
   color: var(--hint);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-/* ── TRIP BANNER ── */
+/* ── TRAVEL MODE BUTTON ── */
+.travel-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.travel-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all .2s;
+  text-align: left;
+}
+.travel-mode-btn.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+.travel-mode-btn .tm-pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--hint);
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.travel-mode-btn.active .tm-pulse {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(34,196,138,.2);
+  animation: pulse 2s infinite;
+}
+.travel-mode-btn .tm-text { flex: 1; min-width: 0; }
+.travel-mode-btn .tm-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.travel-mode-btn.active .tm-label { color: var(--accent2); }
+.travel-mode-btn .tm-sub { font-size: 11px; color: var(--hint); margin-top: 2px; }
+.travel-mode-btn .tm-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent2);
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,196,138,.2)} 50%{box-shadow:0 0 0 6px rgba(34,196,138,.05)} }
+
+/* ── TRIP BANNER (legacy, keep for compat) ── */
 .trip-banner {
   display: flex;
   align-items: center;
@@ -150,10 +207,9 @@ body {
 }
 .trip-pulse.on {
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(108,99,255,.2);
+  box-shadow: 0 0 0 3px rgba(34,196,138,.2);
   animation: pulse 2s infinite;
 }
-@keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(108,99,255,.2)} 50%{box-shadow:0 0 0 6px rgba(108,99,255,.05)} }
 .trip-info { flex: 1; min-width: 0; }
 .trip-name { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trip-name.on { color: var(--accent2); }
@@ -173,24 +229,42 @@ body {
 }
 .trip-toggle-btn.on { border-color: var(--accent-border); color: var(--accent2); }
 
+/* ── TRAVEL MODE MODAL ── */
+.tm-modal-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 14px 0;
+}
+.tm-feature {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.tm-feature strong { display: block; color: var(--text); font-size: 13px; margin-bottom: 2px; }
+
 /* ── AMOUNT INPUT ── */
 .amount-tap { width: 100%; background: none; border: none; cursor: text; display: block; text-align: right; }
 .amount-display {
-  font-size: 56px;
+  font-size: 48px;
   font-weight: 700;
   font-family: var(--mono);
   color: var(--accent2);
   letter-spacing: -2px;
   line-height: 1;
-  min-height: 68px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 .amount-display .cursor {
-  width: 3px; height: 52px;
+  width: 3px; height: 44px;
   background: var(--accent);
   border-radius: 2px;
   animation: blink 1s infinite;
@@ -251,12 +325,12 @@ body {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 13px 15px;
+  padding: 11px 14px;
   color: var(--text);
   font-size: 15px;
   font-family: var(--sans);
   outline: none;
-  margin-top: 10px;
+  margin-top: 8px;
   -webkit-appearance: none;
   transition: border-color .15s;
 }
@@ -267,11 +341,11 @@ input[type="date"].text-input { color-scheme: dark; }
 /* ── SAVE BUTTON ── */
 .save-btn {
   width: 100%;
-  margin-top: 12px;
+  margin-top: 10px;
   background: var(--accent);
   border: none;
   border-radius: var(--radius-sm);
-  padding: 16px;
+  padding: 14px;
   font-size: 16px;
   font-weight: 600;
   color: #fff;
@@ -298,12 +372,13 @@ input[type="date"].text-input { color-scheme: dark; }
   bottom: 0; left: 0; right: 0;
   height: calc(var(--nav-h) + var(--safe-bot));
   display: flex;
-  background: rgba(8,8,16,0.88);
+  background: rgba(8,8,16,0.92);
   border-top: 1px solid var(--border);
   padding-bottom: var(--safe-bot);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   z-index: 100;
+  box-sizing: border-box;
 }
 .nav-btn {
   flex: 1;
@@ -322,9 +397,11 @@ input[type="date"].text-input { color-scheme: dark; }
   transition: color .15s;
   letter-spacing: .04em;
   text-transform: uppercase;
-  padding-top: 4px;
+  height: var(--nav-h);
+  padding: 0;
+  box-sizing: border-box;
 }
-.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; transition: transform .15s; }
+.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; transition: transform .15s; flex-shrink: 0; }
 .nav-btn.active { color: var(--accent2); }
 .nav-btn.active svg { transform: scale(1.1); }
 .nav-dot {
@@ -914,7 +991,7 @@ input[type="date"].text-input { color-scheme: dark; }
    CONSTANTS & VERSIONING
    ═══════════════════════════════════════════════════════════════════ */
 
-const APP_VERSION    = '2.0.0';
+const APP_VERSION    = '2.1.0';
 const SCHEMA_VERSION = 5;       // increment when expense/trip/cat shape changes
 const BUILD_DATE     = '2025-05-09';
 
@@ -1583,24 +1660,24 @@ function renderTripBanner() {
       .filter(e => e.tripId === State.tripId)
       .reduce((s, e) => s + (Number(e.amount) || 0), 0);
     el.innerHTML = `
-      <div class="trip-banner active-trip">
-        <div class="trip-pulse on"></div>
-        <div class="trip-info">
-          <div class="trip-name on">✈ ${esc(State.tripName)}</div>
-          <div class="trip-meta">On trip · ${fmtAmt(tripAmt)} total</div>
+      <button class="travel-mode-btn active" onclick="openTripEndModal()">
+        <div class="tm-pulse"></div>
+        <div class="tm-text">
+          <div class="tm-label">✈ ${esc(State.tripName)}</div>
+          <div class="tm-sub">Trip in progress · tap to end</div>
         </div>
-        <button class="trip-toggle-btn on" onclick="openTripEndModal()">End trip</button>
-      </div>`;
+        <div class="tm-badge">${fmtAmt(tripAmt)}</div>
+      </button>`;
   } else {
     el.innerHTML = `
-      <div class="trip-banner">
-        <div class="trip-pulse"></div>
-        <div class="trip-info">
-          <div class="trip-name">Travel mode off</div>
-          <div class="trip-meta">Start a trip to track separately</div>
+      <button class="travel-mode-btn" onclick="openTravelModeInfoModal()">
+        <div class="tm-pulse"></div>
+        <div class="tm-text">
+          <div class="tm-label">Travel Mode</div>
+          <div class="tm-sub">Track a trip separately</div>
         </div>
-        <button class="trip-toggle-btn" onclick="openTripStartModal()">Start trip</button>
-      </div>`;
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--hint);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
   }
 }
 
@@ -1921,21 +1998,44 @@ function selectSub(s) {
    ACTIONS: TRIPS
    ═══════════════════════════════════════════════════════════════════ */
 
-function openTripStartModal() {
+function openTravelModeInfoModal() {
   Modal.show(`
-    <h3>Start a trip</h3>
-    <p>Name this trip to track its expenses separately.</p>
+    <h3>✈ Travel Mode</h3>
+    <p>Track expenses for a specific trip separately from your daily spending.</p>
+    <div class="tm-modal-features">
+      <div class="tm-feature"><strong>Separate tracking</strong>Trip expenses are tagged and grouped together</div>
+      <div class="tm-feature"><strong>Live total</strong>See your running trip spend at a glance</div>
+      <div class="tm-feature"><strong>History</strong>Completed trips are saved to your history</div>
+      <div class="tm-feature"><strong>Same categories</strong>Uses all your existing categories and subs</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Not now</button>
+      <button class="btn-pri" onclick="_showTripNameStep()">Start a trip →</button>
+    </div>
+  `);
+}
+
+function _showTripNameStep() {
+  Modal.show(`
+    <h3>Name your trip</h3>
+    <p>Give this trip a name so you can find it later.</p>
     <input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="60"/>
     <div class="modal-btns">
       <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
-      <button class="btn-pri" onclick="_startTrip()">Start trip</button>
+      <button class="btn-pri" onclick="_startTrip()">Start trip ✈</button>
     </div>
   `);
   setTimeout(() => {
     const inp = document.getElementById('trip-name-in');
-    if (inp) inp.onkeydown = e => { if (e.key === 'Enter') _startTrip(); };
+    if (inp) { inp.focus(); inp.onkeydown = e => { if (e.key === 'Enter') _startTrip(); }; }
   }, 60);
 }
+
+function openTripStartModal() {
+  _showTripNameStep();
+}
+
+
 
 function _startTrip() {
   const nameEl = document.getElementById('trip-name-in');
