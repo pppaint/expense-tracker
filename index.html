@@ -126,61 +126,104 @@ body {
   margin-bottom: 8px;
 }
 
-/* ── TRAVEL MODE BUTTON ── */
-.travel-mode-row {
+/* ── TRAVEL MODE ICON BUTTON (in date row) ── */
+.date-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-top: 8px;
 }
-.travel-mode-btn {
+.date-row .text-input {
   flex: 1;
+  margin-top: 0;
+}
+.travel-icon-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border-radius: var(--radius-sm);
+  justify-content: center;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface2);
   cursor: pointer;
-  font-family: var(--sans);
   transition: all .2s;
-  text-align: left;
+  position: relative;
 }
-.travel-mode-btn.active {
+.travel-icon-btn svg {
+  width: 18px;
+  height: 18px;
+  color: var(--hint);
+  transition: color .2s, transform .2s;
+}
+.travel-icon-btn:active { transform: scale(.94); }
+.travel-icon-btn.active {
   background: var(--accent-bg);
   border-color: var(--accent-border);
 }
-.travel-mode-btn .tm-pulse {
-  width: 8px; height: 8px;
+.travel-icon-btn.active svg { color: var(--accent2); }
+/* Pulsing dot indicator when trip is active */
+.travel-icon-btn .trip-active-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--hint);
-  flex-shrink: 0;
-  transition: all .2s;
-}
-.travel-mode-btn.active .tm-pulse {
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(34,196,138,.2);
+  display: none;
   animation: pulse 2s infinite;
 }
-.travel-mode-btn .tm-text { flex: 1; min-width: 0; }
-.travel-mode-btn .tm-label {
-  font-size: 13px;
+.travel-icon-btn.active .trip-active-dot { display: block; }
+
+/* ── TRIP STATUS INLINE (below date row, shown only when active) ── */
+.trip-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  margin-top: 6px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.trip-status-bar:active { opacity: .75; }
+.trip-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+.trip-status-name {
+  flex: 1;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--accent2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.travel-mode-btn.active .tm-label { color: var(--accent2); }
-.travel-mode-btn .tm-sub { font-size: 11px; color: var(--hint); margin-top: 2px; }
-.travel-mode-btn .tm-badge {
-  font-size: 11px;
+.trip-status-total {
+  font-size: 12px;
   font-weight: 600;
-  color: var(--accent2);
   font-family: var(--mono);
+  color: var(--accent2);
   white-space: nowrap;
 }
+.trip-status-end {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  white-space: nowrap;
+}
+
+/* ── TRAVEL MODE BUTTON (legacy — hidden now, kept for compat) ── */
+.travel-mode-row { display: none; }
+.travel-mode-btn { display: none; }
 @keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,196,138,.2)} 50%{box-shadow:0 0 0 6px rgba(34,196,138,.05)} }
 
 /* ── TRIP BANNER (legacy, keep for compat) ── */
@@ -370,15 +413,15 @@ input[type="date"].text-input { color-scheme: dark; }
 .bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  height: calc(var(--nav-h) + var(--safe-bot));
   display: flex;
+  align-items: stretch;
   background: rgba(8,8,16,0.92);
   border-top: 1px solid var(--border);
-  padding-bottom: var(--safe-bot);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   z-index: 100;
-  box-sizing: border-box;
+  /* Total height = nav content area + safe area inset */
+  padding-bottom: var(--safe-bot);
 }
 .nav-btn {
   flex: 1;
@@ -397,9 +440,12 @@ input[type="date"].text-input { color-scheme: dark; }
   transition: color .15s;
   letter-spacing: .04em;
   text-transform: uppercase;
+  /* All buttons get the same fixed height — no inheritance from container */
   height: var(--nav-h);
+  min-height: var(--nav-h);
   padding: 0;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 .nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; transition: transform .15s; flex-shrink: 0; }
 .nav-btn.active { color: var(--accent2); }
@@ -860,7 +906,23 @@ input[type="date"].text-input { color-scheme: dark; }
       <div class="pills-wrap" id="sub-pills"></div>
     </div>
     <input class="text-input" id="note-input" type="text" placeholder="Note (optional)" maxlength="80"/>
-    <input class="text-input" id="date-input" type="date"/>
+    <div class="date-row">
+      <button
+        class="travel-icon-btn"
+        id="travel-icon-btn"
+        onclick="event.stopPropagation(); _handleTravelIconTap()"
+        title="Travel Mode"
+        aria-label="Travel Mode"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2L11 13"/>
+          <path d="M22 2L15 22l-4-9-9-4 19-7z"/>
+        </svg>
+        <div class="trip-active-dot"></div>
+      </button>
+      <input class="text-input" id="date-input" type="date"/>
+    </div>
+    <div id="trip-status-inline"></div>
     <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense</button>
   </div>
 </div>
@@ -1654,30 +1716,40 @@ function renderTodayTotal() {
 }
 
 function renderTripBanner() {
-  const el = document.getElementById('trip-banner-el');
+  // Update icon button state
+  const iconBtn = document.getElementById('travel-icon-btn');
+  const statusEl = document.getElementById('trip-status-inline');
+
+  if (!iconBtn || !statusEl) return;
+
   if (State.tripMode) {
     const tripAmt = DataLayer.getAllExpenses()
       .filter(e => e.tripId === State.tripId)
       .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    el.innerHTML = `
-      <button class="travel-mode-btn active" onclick="openTripEndModal()">
-        <div class="tm-pulse"></div>
-        <div class="tm-text">
-          <div class="tm-label">✈ ${esc(State.tripName)}</div>
-          <div class="tm-sub">Trip in progress · tap to end</div>
-        </div>
-        <div class="tm-badge">${fmtAmt(tripAmt)}</div>
-      </button>`;
+
+    iconBtn.classList.add('active');
+    statusEl.innerHTML = `
+      <div class="trip-status-bar" onclick="openTripEndModal()">
+        <div class="trip-status-dot"></div>
+        <div class="trip-status-name">✈ ${esc(State.tripName)}</div>
+        <div class="trip-status-total">${fmtAmt(tripAmt)}</div>
+        <div class="trip-status-end">End trip</div>
+      </div>`;
   } else {
-    el.innerHTML = `
-      <button class="travel-mode-btn" onclick="openTravelModeInfoModal()">
-        <div class="tm-pulse"></div>
-        <div class="tm-text">
-          <div class="tm-label">Travel Mode</div>
-          <div class="tm-sub">Track a trip separately</div>
-        </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--hint);flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>`;
+    iconBtn.classList.remove('active');
+    statusEl.innerHTML = '';
+  }
+
+  // Keep legacy banner el empty
+  const legacyEl = document.getElementById('trip-banner-el');
+  if (legacyEl) legacyEl.innerHTML = '';
+}
+
+function _handleTravelIconTap() {
+  if (State.tripMode) {
+    openTripEndModal();
+  } else {
+    openTravelModeInfoModal();
   }
 }
 
