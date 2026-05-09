@@ -5,181 +5,721 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Expenses"/>
-<meta name="theme-color" content="#0a0a0c"/>
-<title>Expenses</title>
+<meta name="apple-mobile-web-app-title" content="Baht"/>
+<meta name="theme-color" content="#080810"/>
+<title>Baht — Expense Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ARCHITECTURE NOTES (read before editing)
+     ═══════════════════════════════════════════════════════════
+     
+     DATA LAYER  ──  DB object (IndexedDB via idb-keyval-like pattern)
+       • All reads/writes go through DB.get / DB.set / DB.transaction
+       • Never call localStorage directly anywhere in this file
+       • Schema version tracked in DB meta key 'schema_version'
+     
+     MIGRATION LAYER  ──  Migrations.run()
+       • Called ONCE at startup before init()
+       • Snapshots data BEFORE mutating (backup_pre_vN key)
+       • Each migration step is numbered and idempotent
+       • Never remove a migration step — only add new ones
+     
+     STATE LAYER  ──  State object + State.commit()
+       • All UI state lives in State
+       • Re-renders are triggered by State.commit() → renderPage()
+       • Never update the DOM directly from business logic
+     
+     SECURITY  ──  esc() helper
+       • Every user-supplied string going into innerHTML MUST be
+         wrapped in esc(). Non-negotiable.
+     
+     VERSIONING
+       • APP_VERSION  = human-readable release (e.g. "2.0.0")
+       • SCHEMA_VERSION = integer, increments with data changes
+       • Bump SCHEMA_VERSION whenever expense/trip/cat shape changes
+       • Bump APP_VERSION for any user-visible change
+     ═══════════════════════════════════════════════════════════ -->
+
 <style>
+/* ── DESIGN TOKENS ── */
 :root {
-  --bg: #0a0a0c;
-  --surface: #141416;
-  --surface2: #1c1c20;
-  --surface3: #242428;
-  --green: #22c55e;
-  --green-dim: #16a34a;
-  --green-soft: #0d2818;
-  --green-border: #1a4a2a;
-  --text: #f0f0f2;
-  --muted: #72727a;
-  --muted2: #4a4a52;
-  --border: #222226;
-  --danger: #ef4444;
-  --danger-soft: #2a1010;
-  --radius: 20px;
-  --radius-sm: 14px;
-  --font: 'DM Sans', -apple-system, sans-serif;
+  --bg:        #080810;
+  --bg2:       #0e0e1a;
+  --surface:   #13131f;
+  --surface2:  #1a1a2a;
+  --surface3:  #222235;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --text:      #eeeef4;
+  --muted:     #8888aa;
+  --hint:      #4a4a66;
+  --accent:    #6c63ff;
+  --accent2:   #9b93ff;
+  --accent-bg: rgba(108,99,255,0.12);
+  --accent-border: rgba(108,99,255,0.3);
+  --green:     #22c48a;
+  --green-bg:  rgba(34,196,138,0.1);
+  --green-border: rgba(34,196,138,0.25);
+  --red:       #ff5858;
+  --red-bg:    rgba(255,88,88,0.1);
+  --amber:     #ffaa40;
+  --amber-bg:  rgba(255,170,64,0.1);
+  --radius:    18px;
+  --radius-sm: 12px;
+  --radius-xs: 8px;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Outfit', -apple-system, sans-serif;
+  --nav-h:     72px;
+  --safe-top:  env(safe-area-inset-top, 0px);
+  --safe-bot:  env(safe-area-inset-bottom, 0px);
 }
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html { background: var(--bg); }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(80px + env(safe-area-inset-bottom)); overflow-x: hidden; }
+
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { background: var(--bg); overscroll-behavior: none; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bot) + 8px);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
 
 /* ── PAGES ── */
-.page { display: none; padding: 0 16px 24px; }
+.page { display: none; padding: 0 16px 24px; animation: fadeUp .2s ease; }
 .page.active { display: block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 
-/* ── TOP HEADER ── */
-.top-bar { padding: calc(env(safe-area-inset-top) + 20px) 16px 16px; display: flex; justify-content: space-between; align-items: flex-end; }
-.top-bar h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; }
-.top-bar .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.top-right { text-align: right; }
-.today-total { font-size: 28px; font-weight: 600; color: var(--green); letter-spacing: -0.5px; }
+/* ── TOP BAR ── */
+.top-bar {
+  padding: calc(var(--safe-top) + 20px) 0 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.top-bar h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.8px; }
+.top-bar .date-sub { font-size: 13px; color: var(--muted); margin-top: 3px; font-weight: 400; }
+.today-total { font-size: 30px; font-weight: 700; color: var(--accent2); letter-spacing: -0.8px; font-family: var(--mono); }
+.today-count { font-size: 12px; color: var(--muted); margin-top: 3px; text-align: right; }
 
-/* ── TRAVEL BANNER ── */
-.travel-banner { margin: 0 16px 14px; border-radius: var(--radius); padding: 13px 16px; display: flex; align-items: center; gap: 12px; background: var(--green-soft); border: 1px solid var(--green-border); }
-.travel-banner.off { background: var(--surface); border-color: var(--border); }
-.travel-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 6px var(--green); }
-.travel-dot.off { background: var(--muted2); box-shadow: none; }
-.travel-info { flex: 1; min-width: 0; }
-.travel-name { font-size: 14px; font-weight: 500; color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.travel-name.off { color: var(--muted); }
-.travel-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
-.travel-btn { padding: 7px 14px; border-radius: 30px; border: 1px solid var(--green-border); background: transparent; font-size: 12px; font-weight: 500; color: var(--green); cursor: pointer; font-family: var(--font); white-space: nowrap; }
-.travel-btn.off { border-color: var(--border); color: var(--muted); }
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.card-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--hint);
+  margin-bottom: 10px;
+}
 
-/* ── AMOUNT INPUT CARD ── */
-.amount-card { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; border: 1px solid var(--border); }
-.amount-display { font-size: 52px; font-weight: 600; color: var(--green); letter-spacing: -2px; text-align: right; min-height: 64px; line-height: 1; margin-bottom: 6px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-.amount-display .cursor { width: 2px; height: 48px; background: var(--green); border-radius: 2px; animation: blink 1s infinite; flex-shrink: 0; }
+/* ── TRIP BANNER ── */
+.trip-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 10px;
+  transition: all .2s;
+}
+.trip-banner.active-trip {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+.trip-pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--hint);
+  flex-shrink: 0;
+}
+.trip-pulse.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(108,99,255,.2);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(108,99,255,.2)} 50%{box-shadow:0 0 0 6px rgba(108,99,255,.05)} }
+.trip-info { flex: 1; min-width: 0; }
+.trip-name { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-name.on { color: var(--accent2); }
+.trip-meta { font-size: 11px; color: var(--hint); margin-top: 2px; }
+.trip-toggle-btn {
+  padding: 7px 14px;
+  border-radius: 30px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  white-space: nowrap;
+  transition: all .15s;
+}
+.trip-toggle-btn.on { border-color: var(--accent-border); color: var(--accent2); }
+
+/* ── AMOUNT INPUT ── */
+.amount-tap { width: 100%; background: none; border: none; cursor: text; display: block; text-align: right; }
+.amount-display {
+  font-size: 56px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--accent2);
+  letter-spacing: -2px;
+  line-height: 1;
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+.amount-display .cursor {
+  width: 3px; height: 52px;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: blink 1s infinite;
+  flex-shrink: 0;
+}
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-.amount-display .placeholder { color: var(--muted2); }
-.amount-input-real { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
-.amount-tap-area { width: 100%; padding: 0; background: none; border: none; cursor: pointer; display: block; }
+.amount-placeholder { color: var(--surface3); font-family: var(--mono); }
+.amount-real { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.amount-hint { font-size: 12px; color: var(--hint); text-align: right; min-height: 16px; }
 
-/* ── CATEGORY PILLS ── */
-.section-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
-.pills-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-.pills-scroll::-webkit-scrollbar { display: none; }
-.pill { padding: 9px 16px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface2); font-size: 14px; font-weight: 400; color: var(--muted); cursor: pointer; white-space: nowrap; font-family: var(--font); transition: all 0.15s; flex-shrink: 0; }
-.pill.active { background: var(--green-soft); border-color: var(--green-border); color: var(--green); font-weight: 500; }
-
-/* ── SUB PILLS ── */
-.sub-area { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; margin-top: 10px; margin-bottom: 0; }
-.sub-pill { padding: 7px 13px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; font-family: var(--font); transition: all 0.15s; flex-shrink: 0; }
-.sub-pill.active { background: var(--green-soft); border-color: var(--green-border); color: var(--green); font-weight: 500; }
-.sub-pills-scroll { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-.sub-pills-scroll::-webkit-scrollbar { display: none; }
+/* ── PILLS ── */
+.pills-wrap { display: flex; gap: 7px; flex-wrap: wrap; }
+.pill {
+  padding: 8px 15px;
+  border-radius: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--sans);
+  transition: all .15s;
+}
+.pill.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent2);
+  font-weight: 500;
+}
+.sub-pill {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all .15s;
+}
+.sub-pill.active {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+.sub-area {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-top: 10px;
+}
 
 /* ── INPUTS ── */
-.text-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; color: var(--text); font-size: 15px; font-family: var(--font); outline: none; margin-top: 10px; -webkit-appearance: none; }
-.text-input::placeholder { color: var(--muted2); }
-.text-input:focus { border-color: var(--green-border); }
+.text-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 13px 15px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--sans);
+  outline: none;
+  margin-top: 10px;
+  -webkit-appearance: none;
+  transition: border-color .15s;
+}
+.text-input::placeholder { color: var(--hint); }
+.text-input:focus { border-color: var(--accent-border); }
 input[type="date"].text-input { color-scheme: dark; }
 
 /* ── SAVE BUTTON ── */
-.save-btn { width: 100%; margin-top: 14px; background: var(--green); border: none; border-radius: var(--radius-sm); padding: 16px; font-size: 16px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); letter-spacing: -0.2px; transition: opacity 0.15s; }
-.save-btn:active { opacity: 0.85; }
+.save-btn {
+  width: 100%;
+  margin-top: 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--sans);
+  letter-spacing: -0.2px;
+  transition: opacity .15s, transform .1s;
+  position: relative;
+  overflow: hidden;
+}
+.save-btn:active { opacity: .85; transform: scale(.99); }
+.save-btn.saved { background: var(--green); }
+.save-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.08) 0%, transparent 60%);
+  pointer-events: none;
+}
 
 /* ── BOTTOM NAV ── */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: rgba(14,14,17,0.92); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 100; }
-.nav-btn { flex: 1; background: none; border: none; padding: 14px 0 12px; color: var(--muted2); font-size: 11px; font-weight: 500; font-family: var(--font); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: color 0.15s; letter-spacing: 0.03em; text-transform: uppercase; }
-.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.6; }
-.nav-btn.active { color: var(--green); }
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: calc(var(--nav-h) + var(--safe-bot));
+  display: flex;
+  background: rgba(8,8,16,0.88);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-bot);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  z-index: 100;
+}
+.nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--hint);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: color .15s;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding-top: 4px;
+}
+.nav-btn svg { width: 22px; height: 22px; stroke-width: 1.8; transition: transform .15s; }
+.nav-btn.active { color: var(--accent2); }
+.nav-btn.active svg { transform: scale(1.1); }
+.nav-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity .2s;
+  margin-top: -4px;
+}
+.nav-btn.active .nav-dot { opacity: 1; }
 
 /* ── MODAL ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; padding: 16px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn .15s ease;
+}
 .modal-overlay.hidden { display: none; }
-.modal { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 22px; width: 100%; max-width: 430px; margin: 0 auto; }
-.modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-.modal p { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
-.modal input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; color: var(--text); font-size: 16px; font-family: var(--font); outline: none; margin-bottom: 14px; -webkit-appearance: none; }
-.modal input::placeholder { color: var(--muted2); }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  padding: 22px;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  animation: slideUp .2s ease;
+}
+@keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 6px; letter-spacing: -.3px; }
+.modal p { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.55; }
+.modal input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  color: var(--text);
+  font-size: 16px;
+  font-family: var(--sans);
+  outline: none;
+  margin-bottom: 14px;
+  -webkit-appearance: none;
+}
+.modal input:focus { border-color: var(--accent-border); }
+.modal input::placeholder { color: var(--hint); }
 .modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.btn-sec { padding: 13px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; font-family: var(--font); }
-.btn-pri { padding: 13px; border-radius: var(--radius-sm); border: none; background: var(--green); font-size: 14px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); }
+.btn-sec {
+  padding: 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.btn-pri {
+  padding: 13px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.btn-danger {
+  padding: 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,88,88,.3);
+  background: var(--red-bg);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--red);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+/* ── TOAST ── */
+.toast-container { position: fixed; top: calc(var(--safe-top) + 12px); left: 16px; right: 16px; z-index: 999; pointer-events: none; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: toastIn .25s ease;
+  backdrop-filter: blur(20px);
+}
+.toast.success { border-color: var(--green-border); color: var(--green); }
+.toast.error   { border-color: rgba(255,88,88,.3); color: var(--red); }
+.toast.info    { border-color: var(--accent-border); color: var(--accent2); }
+@keyframes toastIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
 
 /* ── SUMMARY PAGE ── */
-.page-header { padding: calc(env(safe-area-inset-top) + 20px) 0 20px; }
-.page-header h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.4px; }
-.page-header .month-label { font-size: 13px; color: var(--muted); margin-top: 3px; }
-.summary-total-block { background: var(--surface); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); }
-.summary-total-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-.summary-total-amt { font-size: 38px; font-weight: 600; color: var(--green); letter-spacing: -1.5px; }
-.summary-total-count { font-size: 13px; color: var(--muted); margin-top: 4px; }
-.summary-card { background: var(--surface); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 10px; border: 1px solid var(--border); }
-.summary-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-.summary-cat { font-size: 15px; font-weight: 500; }
-.summary-amt { font-size: 15px; font-weight: 600; color: var(--green); }
-.bar-track { height: 4px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
-.bar-fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.4s ease; }
-.summary-pct { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.page-header { padding: calc(var(--safe-top) + 20px) 0 18px; }
+.page-header h2 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+.page-header .sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+.stat-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--hint); margin-bottom: 5px; }
+.stat-val { font-size: 22px; font-weight: 700; font-family: var(--mono); letter-spacing: -1px; color: var(--accent2); }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.summary-cat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.summary-cat-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.summary-cat-name { font-size: 14px; font-weight: 500; }
+.summary-cat-amt { font-size: 14px; font-weight: 600; font-family: var(--mono); color: var(--green); }
+.bar-track { height: 3px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 99px; transition: width .5s ease; }
+.summary-cat-pct { font-size: 11px; color: var(--hint); margin-top: 5px; }
 
 /* ── HISTORY PAGE ── */
-.history-group-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 8px; }
-.history-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 10px; }
-.history-item { display: flex; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--border); gap: 12px; }
+.group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hint);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin: 18px 0 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.group-total { font-family: var(--mono); color: var(--muted); font-size: 12px; letter-spacing: 0; }
+.history-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.history-item {
+  display: flex;
+  align-items: center;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  transition: background .1s;
+}
 .history-item:last-child { border-bottom: none; }
+.history-item:active { background: var(--surface2); }
+.h-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
 .h-info { flex: 1; min-width: 0; }
 .h-cat { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.h-amt { font-size: 15px; font-weight: 600; white-space: nowrap; }
-.h-del { background: none; border: none; color: var(--muted2); cursor: pointer; padding: 6px; font-size: 18px; line-height: 1; display: flex; align-items: center; }
-.trip-tag { display: inline-block; padding: 1px 7px; border-radius: 20px; background: var(--green-soft); border: 1px solid var(--green-border); color: var(--green); font-size: 10px; margin-left: 5px; vertical-align: middle; }
+.h-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.h-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.h-amt { font-size: 14px; font-weight: 600; font-family: var(--mono); white-space: nowrap; }
+.h-actions { display: flex; gap: 2px; }
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--hint);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: all .15s;
+}
+.icon-btn:hover { color: var(--muted); background: var(--surface2); }
+.icon-btn.danger:hover { color: var(--red); }
+.trip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  color: var(--accent2);
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 
-/* ── PAST TRIPS ── */
-.past-trips-section { margin-top: 24px; }
-.trip-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s; }
-.trip-card:active { border-color: var(--green-border); }
-.trip-card-header { display: flex; justify-content: space-between; align-items: center; }
-.trip-card-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 7px; }
-.trip-card-right { display: flex; align-items: center; gap: 10px; }
-.trip-card-total { font-size: 15px; font-weight: 600; color: var(--green); }
-.trip-card-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.trip-del-btn { background: none; border: none; color: var(--muted2); cursor: pointer; padding: 4px; font-size: 16px; display: flex; align-items: center; }
+/* ── TRIP CARDS ── */
+.section-heading { font-size: 13px; font-weight: 600; color: var(--muted); margin: 24px 0 10px; }
+.trip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.trip-card:active { border-color: var(--border2); }
+.trip-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.trip-card-name { font-size: 15px; font-weight: 600; }
+.trip-card-amt { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--accent2); }
+.trip-card-meta { font-size: 12px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 6px; }
+.trip-card-actions { display: flex; align-items: center; gap: 4px; }
 
-/* ── TRIP DETAIL VIEW ── */
-.detail-header { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top) + 16px) 0 16px; }
-.back-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.back-btn svg { width: 18px; height: 18px; stroke: var(--muted); }
-.detail-title { flex: 1; font-size: 18px; font-weight: 600; }
-.detail-total { font-size: 18px; font-weight: 600; color: var(--green); }
-.detail-date-group { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 6px; }
+/* ── SETTINGS PAGE ── */
+.settings-section { margin-bottom: 24px; }
+.settings-section-title { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--hint); margin-bottom: 10px; }
+.settings-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.settings-item:hover { border-color: var(--border2); }
+.settings-item-left { display: flex; align-items: center; gap: 12px; }
+.settings-item-icon {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.settings-item-text .label { font-size: 14px; font-weight: 500; }
+.settings-item-text .sublabel { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.settings-item-right { color: var(--hint); display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.app-version { text-align: center; font-size: 11px; color: var(--hint); font-family: var(--mono); margin-top: 24px; padding: 16px; }
 
 /* ── CATEGORY EDITOR ── */
-.editor-header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 16px) 0 16px; }
-.editor-title { font-size: 22px; font-weight: 600; }
-.editor-cat-block { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 12px; }
+.editor-header { display: flex; align-items: center; justify-content: space-between; padding: calc(var(--safe-top) + 16px) 0 16px; }
+.editor-title { font-size: 22px; font-weight: 700; }
+.editor-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
 .editor-cat-row { padding: 13px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.editor-cat-icon { font-size: 18px; width: 28px; text-align: center; }
 .editor-cat-name { flex: 1; font-size: 15px; font-weight: 500; }
-.editor-subs { padding: 12px 16px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.editor-chip { display: flex; align-items: center; gap: 5px; padding: 6px 8px 6px 12px; border-radius: 30px; border: 1px solid var(--border); background: var(--surface2); font-size: 13px; color: var(--text); }
-.editor-chip.is-other { opacity: .45; }
-.chip-del { background: none; border: none; cursor: pointer; color: var(--muted2); font-size: 14px; padding: 0; line-height: 1; display: flex; align-items: center; }
-.chip-del:hover { color: var(--danger); }
-.add-sub-btn { padding: 6px 12px; border-radius: 30px; border: 1px dashed var(--muted2); background: transparent; font-size: 13px; color: var(--muted); cursor: pointer; font-family: var(--font); }
-.new-sub-input { padding: 6px 10px; border-radius: 30px; border: 1px solid var(--green-border); background: var(--surface2); font-size: 13px; color: var(--text); font-family: var(--font); outline: none; width: 130px; }
-.confirm-sub-btn { padding: 6px 12px; border-radius: 30px; border: none; background: var(--green); font-size: 12px; font-weight: 600; color: #000; cursor: pointer; font-family: var(--font); }
-.cancel-sub-btn { padding: 6px 10px; border-radius: 30px; border: 1px solid var(--border); background: transparent; font-size: 12px; color: var(--muted); cursor: pointer; font-family: var(--font); }
+.editor-subs { padding: 11px 14px 13px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.editor-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--text);
+}
+.editor-chip.is-other { opacity: .4; }
+.chip-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--hint);
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+.chip-del:hover { color: var(--red); }
+.add-sub-btn {
+  padding: 5px 12px;
+  border-radius: 30px;
+  border: 1px dashed var(--hint);
+  background: transparent;
+  font-size: 12px;
+  color: var(--hint);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.new-sub-input {
+  padding: 5px 10px;
+  border-radius: 30px;
+  border: 1px solid var(--accent-border);
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--text);
+  font-family: var(--sans);
+  outline: none;
+  width: 120px;
+}
+.confirm-sub-btn {
+  padding: 5px 12px;
+  border-radius: 30px;
+  border: none;
+  background: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.cancel-sub-btn {
+  padding: 5px 10px;
+  border-radius: 30px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+/* ── DETAIL VIEW ── */
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--safe-top) + 14px) 0 14px;
+}
+.back-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.back-btn svg { width: 18px; height: 18px; stroke: var(--muted); }
+.detail-title { flex: 1; font-size: 18px; font-weight: 600; }
+.detail-total { font-size: 18px; font-weight: 700; font-family: var(--mono); color: var(--accent2); }
 
 /* ── EMPTY STATE ── */
-.empty { text-align: center; padding: 48px 16px; color: var(--muted); font-size: 14px; line-height: 1.7; }
-.empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
+.empty { text-align: center; padding: 56px 16px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.empty-icon { font-size: 40px; margin-bottom: 14px; opacity: .35; }
+
+/* ── STATUS BAR (data health) ── */
+.data-health {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.health-dot.ok     { background: var(--green); }
+.health-dot.warn   { background: var(--amber); }
+.health-dot.danger { background: var(--red); }
+.health-text { flex: 1; font-size: 12px; color: var(--muted); }
+.health-action { font-size: 12px; color: var(--accent2); cursor: pointer; font-weight: 500; }
+
+/* ── MISC ── */
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.text-green  { color: var(--green); }
+.text-red    { color: var(--red); }
+.text-accent { color: var(--accent2); }
+.text-muted  { color: var(--muted); }
+.font-mono   { font-family: var(--mono); }
 </style>
 </head>
 <body>
 
-<!-- MODALS -->
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- MODAL -->
 <div class="modal-overlay hidden" id="modal-overlay">
   <div class="modal" id="modal-box"></div>
 </div>
@@ -188,185 +728,790 @@ input[type="date"].text-input { color-scheme: dark; }
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-add" onclick="showPage('add',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <div class="nav-dot"></div>
     Add
   </button>
   <button class="nav-btn" id="nav-summary" onclick="showPage('summary',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <div class="nav-dot"></div>
     Summary
   </button>
   <button class="nav-btn" id="nav-history" onclick="showPage('history',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+    <div class="nav-dot"></div>
     History
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="showPage('settings',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    <div class="nav-dot"></div>
+    Settings
   </button>
 </nav>
 
-<!-- ADD PAGE -->
+<!-- ═══════ PAGE: ADD ═══════ -->
 <div class="page active" id="page-add">
   <div class="top-bar">
     <div>
       <h1>Today</h1>
-      <div class="sub" id="add-date-label"></div>
+      <div class="date-sub" id="add-date-label"></div>
     </div>
-    <div class="top-right">
+    <div>
       <div class="today-total" id="today-total">฿0</div>
-      <div class="sub" id="today-count"></div>
+      <div class="today-count" id="today-count"></div>
     </div>
   </div>
 
-  <!-- Travel Banner -->
-  <div id="travel-banner"></div>
+  <div id="trip-banner-el"></div>
 
-  <!-- Amount Card -->
-  <div class="amount-card" onclick="focusAmount()">
-    <div class="amount-display" id="amount-display">
-      <span class="placeholder" id="amount-placeholder">0</span>
-      <span class="cursor" id="amount-cursor" style="display:none"></span>
-    </div>
-    <input class="amount-input-real" id="amount-input" type="number" inputmode="decimal" min="0" step="any" />
+  <div class="card" onclick="focusAmount()">
+    <div class="card-label">Amount</div>
+    <button class="amount-tap" aria-label="Tap to enter amount">
+      <div class="amount-display" id="amount-display">
+        <span class="amount-placeholder" id="amount-placeholder">0</span>
+        <span class="cursor" id="amount-cursor" style="display:none"></span>
+      </div>
+      <div class="amount-hint" id="amount-hint"></div>
+    </button>
+    <input class="amount-real" id="amount-input" type="number" inputmode="decimal" min="0" step="any"/>
   </div>
 
-  <!-- Category -->
-  <div class="amount-card" style="padding:18px 18px 16px">
-    <div class="section-label">Category</div>
-    <div class="pills-scroll" id="cat-pills"></div>
+  <div class="card" style="padding:16px">
+    <div class="card-label">Category</div>
+    <div class="pills-wrap" id="cat-pills"></div>
     <div class="sub-area">
-      <div class="section-label">Sub-category</div>
-      <div class="sub-pills-scroll" id="sub-pills"></div>
+      <div class="card-label" style="margin-bottom:8px">Sub-category</div>
+      <div class="pills-wrap" id="sub-pills"></div>
     </div>
-    <input class="text-input" id="note-input" type="text" placeholder="Short note (optional)" maxlength="60"/>
+    <input class="text-input" id="note-input" type="text" placeholder="Note (optional)" maxlength="80"/>
     <input class="text-input" id="date-input" type="date"/>
-    <button class="save-btn" onclick="saveExpense()">Save Expense</button>
+    <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense</button>
   </div>
 </div>
 
-<!-- SUMMARY PAGE -->
+<!-- ═══════ PAGE: SUMMARY ═══════ -->
 <div class="page" id="page-summary">
   <div class="page-header">
     <h2>Summary</h2>
-    <div class="month-label" id="summary-month-label"></div>
+    <div class="sub" id="summary-period-label"></div>
   </div>
   <div id="summary-content"></div>
 </div>
 
-<!-- HISTORY PAGE -->
+<!-- ═══════ PAGE: HISTORY ═══════ -->
 <div class="page" id="page-history">
-  <div style="display:flex;justify-content:space-between;align-items:center">
-    <div class="page-header" style="padding-right:0">
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
       <h2>History</h2>
-      <div class="month-label">All entries</div>
+      <div class="sub">All entries</div>
     </div>
-    <button onclick="openEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:30px;padding:8px 14px;color:var(--muted);font-size:12px;font-family:var(--font);cursor:pointer;margin-top:calc(env(safe-area-inset-top) + 20px)">Edit categories</button>
+    <button onclick="openEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:30px;padding:7px 14px;color:var(--muted);font-size:12px;font-family:var(--sans);cursor:pointer;margin-bottom:2px">Categories</button>
   </div>
   <div id="history-content"></div>
-  <div id="past-trips-section"></div>
+  <div id="trips-section"></div>
 </div>
 
-<!-- TRIP DETAIL VIEW (hidden page) -->
+<!-- ═══════ PAGE: SETTINGS ═══════ -->
+<div class="page" id="page-settings">
+  <div class="page-header"><h2>Settings</h2></div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Data & Backup</div>
+    <div id="data-health-card"></div>
+    <div class="settings-item" onclick="doExport()">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--green-bg)">📤</div>
+        <div class="settings-item-text">
+          <div class="label">Export Data</div>
+          <div class="sublabel">Download all expenses as JSON</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+    <div class="settings-item" onclick="doImport()">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--accent-bg)">📥</div>
+        <div class="settings-item-text">
+          <div class="label">Import / Restore</div>
+          <div class="sublabel">Restore from a JSON backup file</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+    <div class="settings-item" onclick="viewBackups()">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--amber-bg)">🗄</div>
+        <div class="settings-item-text">
+          <div class="label">Auto-backups</div>
+          <div class="sublabel" id="backup-count-label">Stored locally before each update</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Appearance & Preferences</div>
+    <div class="settings-item" onclick="openCurrencyModal()">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--surface2)">💱</div>
+        <div class="settings-item-text">
+          <div class="label">Currency</div>
+          <div class="sublabel" id="currency-label">Thai Baht (฿)</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Danger Zone</div>
+    <div class="settings-item" onclick="confirmClearAll()" style="border-color:rgba(255,88,88,.2)">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--red-bg)">⚠️</div>
+        <div class="settings-item-text">
+          <div class="label" style="color:var(--red)">Clear All Data</div>
+          <div class="sublabel">Cannot be undone — export first!</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-version" id="app-version-label"></div>
+</div>
+
+<!-- ═══════ PAGE: TRIP DETAIL ═══════ -->
 <div class="page" id="page-trip-detail">
   <div id="trip-detail-content"></div>
 </div>
 
-<!-- CATEGORY EDITOR VIEW (hidden page) -->
+<!-- ═══════ PAGE: CATEGORY EDITOR ═══════ -->
 <div class="page" id="page-editor">
   <div class="editor-header">
-    <span class="editor-title">Sub-categories</span>
+    <span class="editor-title">Categories</span>
     <button class="btn-sec" onclick="closeEditor()" style="padding:8px 16px;font-size:13px">Done</button>
   </div>
   <div id="editor-content"></div>
 </div>
 
+<!-- hidden file input for import -->
+<input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
+
 <script>
-// ── DEFAULT DATA ──
-const DEFAULT_CATS = [
-  {id:'food',       label:'Food',           subs:['Meal','Drinks','Desserts','Snacks','Other']},
-  {id:'transport',  label:'Transportation', subs:['BTS/MRT','Grab','Other']},
-  {id:'bills',      label:'Bills',          subs:['Internet','Entertainment','Other']},
-  {id:'shopping',   label:'Shopping',       subs:['Clothes','Skincare','Miscellaneous','Other']},
-  {id:'activities', label:'Activities',     subs:['Sports','Movie','Tickets','Other']},
-  {id:'other',      label:'Other',          subs:['Other']},
-];
+'use strict';
 
+/* ═══════════════════════════════════════════════════════════════════
+   CONSTANTS & VERSIONING
+   ═══════════════════════════════════════════════════════════════════ */
 
-// ── STORAGE ──
-const STORAGE_VERSION = 5;
-const LS = {
-  get: k => { try { return JSON.parse(localStorage.getItem(k)||'null'); } catch { return null; } },
-  set: (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} },
+const APP_VERSION    = '2.0.0';
+const SCHEMA_VERSION = 5;       // increment when expense/trip/cat shape changes
+const BUILD_DATE     = '2025-05-09';
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECURITY HELPERS
+   All user-supplied strings MUST pass through esc() before innerHTML.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str ?? '');
+  return d.innerHTML;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DATABASE LAYER
+   Thin wrapper around localStorage with:
+     - Automatic JSON encode/decode
+     - Typed error surfacing (never silent)
+     - Storage quota checking
+     - Atomic multi-key transactions (best-effort)
+   
+   NOTE: If usage grows, replace LS.get/set internals with IndexedDB
+   without touching any caller — the API stays the same.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const DB = {
+  get(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return null;
+      return JSON.parse(raw);
+    } catch (err) {
+      console.error(`[DB.get] Failed to parse key "${key}":`, err);
+      return null;
+    }
+  },
+
+  set(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (err) {
+      // QuotaExceededError — storage full
+      if (err.name === 'QuotaExceededError' || err.code === 22) {
+        showStorageFullWarning();
+      } else {
+        console.error(`[DB.set] Failed to write key "${key}":`, err);
+      }
+      return false;
+    }
+  },
+
+  remove(key) {
+    try { localStorage.removeItem(key); return true; }
+    catch { return false; }
+  },
+
+  keys(prefix = '') {
+    const result = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (!prefix || k.startsWith(prefix))) result.push(k);
+    }
+    return result;
+  },
+
+  // Estimate usage in KB
+  estimateUsageKB() {
+    try {
+      let total = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        total += k.length + (localStorage.getItem(k) || '').length;
+      }
+      return Math.round(total * 2 / 1024); // UTF-16
+    } catch { return 0; }
+  },
+
+  // Best-effort atomic write of multiple keys
+  // Rolls back if any write fails
+  transaction(writes) {
+    const rollback = [];
+    for (const [key, value] of writes) {
+      const prev = localStorage.getItem(key);
+      rollback.push([key, prev]);
+      if (!this.set(key, value)) {
+        // Rollback everything written so far
+        for (const [rk, rv] of rollback) {
+          if (rv === null) localStorage.removeItem(rk);
+          else localStorage.setItem(rk, rv);
+        }
+        return false;
+      }
+    }
+    return true;
+  }
 };
-function getCats() { return LS.get('cats_v4') || DEFAULT_CATS; }
-function saveCats(c) { LS.set('cats_v4', c); }
-function getAllExpenses() {
-  const all = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith('exp_')) {
-      const arr = LS.get(k) || [];
-      arr.forEach(e => all.push(e));
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCHEMA & NORMALIZATION
+   
+   normalizeExpense(): Converts ANY version of an expense to the
+   current schema. This is the single source of truth for what a
+   valid expense looks like. Safe to call on unknown/old data.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function normalizeExpense(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const amount = Number(raw.amount);
+  if (!isFinite(amount)) return null;
+
+  return {
+    _v:          SCHEMA_VERSION,
+    id:          raw.id && typeof raw.id === 'string' ? raw.id : crypto.randomUUID(),
+    amount:      Math.max(0, amount),
+    category:    typeof raw.category === 'string'    ? raw.category    : 'other',
+    subcategory: typeof raw.subcategory === 'string' ? raw.subcategory : 'Other',
+    note:        typeof raw.note === 'string'        ? raw.note.slice(0, 200) : '',
+    date:        isValidDate(raw.date)               ? raw.date        : todayStr(),
+    ts:          Number(raw.ts) > 0                  ? Number(raw.ts)  : Date.now(),
+    tripId:      raw.tripId || null,
+  };
+}
+
+function isValidDate(str) {
+  return typeof str === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(str);
+}
+
+function normalizeTrip(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    _v:    SCHEMA_VERSION,
+    id:    raw.id || Date.now(),
+    name:  typeof raw.name === 'string' ? raw.name.slice(0, 60) : 'Trip',
+    start: Number(raw.start) || Date.now(),
+    end:   Number(raw.end)   || null,
+    total: Number(raw.total) || 0,
+    count: Number(raw.count) || 0,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MIGRATION SYSTEM
+   
+   Rules:
+   1. migrateAll() is called ONCE at startup, before init()
+   2. Each step is checked by version number and is idempotent
+   3. A backup snapshot is created BEFORE any migration runs
+   4. The stored 'schema_version' is the source of truth
+   5. Never remove a step — add new steps for new changes
+   ═══════════════════════════════════════════════════════════════════ */
+
+const Migrations = {
+  run() {
+    const stored = Number(DB.get('schema_version')) || 0;
+    if (stored >= SCHEMA_VERSION) return; // nothing to do
+
+    console.log(`[Migrations] Running v${stored} → v${SCHEMA_VERSION}`);
+    
+    // ALWAYS back up before migrating
+    this._createPreMigrationBackup(stored);
+
+    // Step-by-step migration chain
+    // Each step is applied in order and is safe to re-run
+    
+    if (stored < 2) {
+      // v1→v2: expenses may have string amounts, normalize types
+      this._normalizeExpenseTypes();
+    }
+
+    if (stored < 3) {
+      // v2→v3: add id field to expenses that don't have one
+      this._backfillExpenseIds();
+    }
+
+    if (stored < 4) {
+      // v3→v4: migrate from old key format 'expenses_YYYY-MM-DD' if any
+      this._migrateOldKeyFormat();
+    }
+
+    if (stored < 5) {
+      // v4→v5: run full normalization on all records
+      this._normalizeAllExpenses();
+    }
+
+    // Record new version
+    DB.set('schema_version', SCHEMA_VERSION);
+    console.log(`[Migrations] Complete. Now at v${SCHEMA_VERSION}`);
+  },
+
+  _createPreMigrationBackup(fromVersion) {
+    try {
+      const snapshot = {
+        backed_up_at: new Date().toISOString(),
+        from_version: fromVersion,
+        to_version: SCHEMA_VERSION,
+        expenses: DataLayer.getAllExpenses(),
+        trips: DataLayer.getTrips(),
+        cats: DataLayer.getCats(),
+      };
+      // Rolling window: keep last 3 pre-migration backups
+      DB.set('auto_backup_2', DB.get('auto_backup_1'));
+      DB.set('auto_backup_1', DB.get('auto_backup_0'));
+      DB.set('auto_backup_0', snapshot);
+      console.log('[Migrations] Pre-migration backup created');
+    } catch (err) {
+      console.warn('[Migrations] Backup failed (continuing):', err);
+    }
+  },
+
+  _normalizeExpenseTypes() {
+    const dayKeys = DB.keys('exp_');
+    for (const key of dayKeys) {
+      const arr = DB.get(key);
+      if (!Array.isArray(arr)) continue;
+      DB.set(key, arr.map(e => ({
+        ...e,
+        amount: Number(e.amount) || 0,
+        ts: Number(e.ts) || Date.now(),
+      })));
+    }
+  },
+
+  _backfillExpenseIds() {
+    const dayKeys = DB.keys('exp_');
+    for (const key of dayKeys) {
+      const arr = DB.get(key);
+      if (!Array.isArray(arr)) continue;
+      DB.set(key, arr.map(e => ({
+        ...e,
+        id: e.id || crypto.randomUUID(),
+      })));
+    }
+  },
+
+  _migrateOldKeyFormat() {
+    // Migrate 'expenses_YYYY-MM-DD' → 'exp_YYYY_MM_DD' if any
+    const oldKeys = DB.keys('expenses_');
+    for (const oldKey of oldKeys) {
+      const dateStr = oldKey.replace('expenses_', '');
+      const newKey = 'exp_' + dateStr.replace(/-/g, '_');
+      const existing = DB.get(newKey) || [];
+      const oldData = DB.get(oldKey) || [];
+      if (oldData.length > 0) {
+        DB.set(newKey, [...existing, ...oldData]);
+        DB.remove(oldKey);
+      }
+    }
+  },
+
+  _normalizeAllExpenses() {
+    const dayKeys = DB.keys('exp_');
+    for (const key of dayKeys) {
+      const arr = DB.get(key);
+      if (!Array.isArray(arr)) continue;
+      const normalized = arr.map(normalizeExpense).filter(Boolean);
+      DB.set(key, normalized);
     }
   }
-  return all.sort((a,b) => b.ts - a.ts);
-}
-function dayKey(dateStr) { return 'exp_' + dateStr.replace(/-/g,'_'); }
-function loadDay(dateStr) { return LS.get(dayKey(dateStr)) || []; }
-function saveDay(dateStr, arr) { LS.set(dayKey(dateStr), arr); }
-function loadTrips() { return LS.get('trips_v4') || []; }
-function saveTrips(t) { LS.set('trips_v4', t); }
-function loadActiveTrip() { return LS.get('active_trip_v4'); }
-function saveActiveTrip(t) { LS.set('active_trip_v4', t); }
-
-// ── STATE ──
-const S = {
-  page: 'add',
-  selCat: null,
-  selSub: null,
-  tripMode: false,
-  tripName: '',
-  tripStart: null,
-  tripId: null,
-  addingSubFor: null,
-  prevPage: null,
 };
 
-function init() {
-  const cats = getCats();
-  S.selCat = cats[0].id;
-  S.selSub = cats[0].subs[0];
-  const at = loadActiveTrip();
-  if (at) { S.tripMode = true; S.tripName = at.name; S.tripStart = at.start; S.tripId = at.id; }
-  const today = todayStr();
-  document.getElementById('date-input').value = today;
-  document.getElementById('add-date-label').textContent = fmtDateLong(today);
-  document.getElementById('summary-month-label').textContent = fmtMonthLabel();
-  renderAll();
-  setupAmountInput();
-  const currentVersion = localStorage.getItem('storage_version');
+/* ═══════════════════════════════════════════════════════════════════
+   DATA LAYER
+   Single source of truth for all data operations.
+   Business logic never touches DB directly — always goes through here.
+   ═══════════════════════════════════════════════════════════════════ */
 
-if (currentVersion !== String(STORAGE_VERSION)) {
-  localStorage.setItem('storage_version', STORAGE_VERSION);
-}
-}
+const DEFAULT_CATS = [
+  { id: 'food',       label: 'Food',           icon: '🍜', subs: ['Meal', 'Drinks', 'Desserts', 'Snacks', 'Other'] },
+  { id: 'transport',  label: 'Transport',      icon: '🚇', subs: ['BTS/MRT', 'Grab', 'Taxi', 'Other'] },
+  { id: 'bills',      label: 'Bills',          icon: '📱', subs: ['Internet', 'Streaming', 'Phone', 'Other'] },
+  { id: 'shopping',   label: 'Shopping',       icon: '🛍', subs: ['Clothes', 'Skincare', 'Electronics', 'Other'] },
+  { id: 'activities', label: 'Activities',     icon: '🎬', subs: ['Sports', 'Cinema', 'Tickets', 'Other'] },
+  { id: 'health',     label: 'Health',         icon: '💊', subs: ['Medicine', 'Doctor', 'Gym', 'Other'] },
+  { id: 'other',      label: 'Other',          icon: '📦', subs: ['Other'] },
+];
 
-// ── HELPERS ──
+const DEFAULT_PREFS = {
+  currency_symbol: '฿',
+  currency_locale: 'th-TH',
+  last_export: null,
+};
+
+// Simple cache to avoid re-reading localStorage on every render
+const _cache = { expenses: null, trips: null, cats: null };
+
+const DataLayer = {
+  // ── Keys ──
+  dayKey(dateStr)  { return 'exp_' + dateStr.replace(/-/g, '_'); },
+
+  // ── Expenses ──
+  getDay(dateStr) {
+    const raw = DB.get(this.dayKey(dateStr));
+    if (!Array.isArray(raw)) return [];
+    return raw.map(normalizeExpense).filter(Boolean);
+  },
+
+  saveDay(dateStr, arr) {
+    _cache.expenses = null; // invalidate cache
+    return DB.set(this.dayKey(dateStr), arr.map(normalizeExpense).filter(Boolean));
+  },
+
+  getAllExpenses() {
+    if (_cache.expenses) return _cache.expenses;
+    const all = [];
+    for (const key of DB.keys('exp_')) {
+      const arr = DB.get(key);
+      if (!Array.isArray(arr)) continue;
+      arr.forEach(e => {
+        const n = normalizeExpense(e);
+        if (n) all.push(n);
+      });
+    }
+    all.sort((a, b) => b.ts - a.ts);
+    _cache.expenses = all;
+    return all;
+  },
+
+  addExpense(expense) {
+    const clean = normalizeExpense(expense);
+    if (!clean) return false;
+    const arr = this.getDay(clean.date);
+    arr.unshift(clean);
+    return this.saveDay(clean.date, arr);
+  },
+
+  updateExpense(id, date, updates) {
+    const arr = this.getDay(date);
+    const idx = arr.findIndex(e => e.id === id);
+    if (idx === -1) return false;
+    arr[idx] = normalizeExpense({ ...arr[idx], ...updates });
+    return this.saveDay(date, arr);
+  },
+
+  deleteExpense(id, date) {
+    const arr = this.getDay(date).filter(e => e.id !== id);
+    return this.saveDay(date, arr);
+  },
+
+  // ── Trips ──
+  getTrips() {
+    if (_cache.trips) return _cache.trips;
+    const raw = DB.get('trips_v5') || [];
+    _cache.trips = raw.map(normalizeTrip).filter(Boolean);
+    return _cache.trips;
+  },
+
+  saveTrips(trips) {
+    _cache.trips = null;
+    return DB.set('trips_v5', trips.map(normalizeTrip).filter(Boolean));
+  },
+
+  getActiveTrip()  { return DB.get('active_trip_v5'); },
+  saveActiveTrip(t){ return DB.set('active_trip_v5', t); },
+
+  // ── Categories ──
+  getCats() {
+    if (_cache.cats) return _cache.cats;
+    const raw = DB.get('cats_v5');
+    _cache.cats = Array.isArray(raw) ? raw : DEFAULT_CATS;
+    return _cache.cats;
+  },
+
+  saveCats(cats) {
+    _cache.cats = null;
+    return DB.set('cats_v5', cats);
+  },
+
+  getCatById(id) {
+    return this.getCats().find(c => c.id === id) || this.getCats().at(-1);
+  },
+
+  // ── Preferences ──
+  getPrefs() {
+    return { ...DEFAULT_PREFS, ...(DB.get('prefs_v5') || {}) };
+  },
+  savePrefs(p) {
+    return DB.set('prefs_v5', { ...this.getPrefs(), ...p });
+  },
+
+  // ── Export / Import ──
+  exportSnapshot() {
+    const prefs = this.getPrefs();
+    return {
+      app_version:   APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      exported_at:   new Date().toISOString(),
+      expenses:      this.getAllExpenses(),
+      trips:         this.getTrips(),
+      cats:          this.getCats(),
+      prefs:         prefs,
+    };
+  },
+
+  importSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') throw new Error('Invalid backup file');
+    if (!Array.isArray(snapshot.expenses)) throw new Error('Missing expenses array');
+
+    // Create a safety backup before overwriting
+    const safetyBackup = this.exportSnapshot();
+    DB.set('pre_import_backup', safetyBackup);
+
+    // Rebuild day keys from expense list
+    const byDay = {};
+    for (const e of snapshot.expenses) {
+      const n = normalizeExpense(e);
+      if (!n) continue;
+      const key = this.dayKey(n.date);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(n);
+    }
+
+    // Write all day keys
+    for (const [key, arr] of Object.entries(byDay)) {
+      DB.set(key, arr);
+    }
+
+    // Write trips and cats
+    if (Array.isArray(snapshot.trips)) {
+      this.saveTrips(snapshot.trips);
+    }
+    if (Array.isArray(snapshot.cats) && snapshot.cats.length > 0) {
+      this.saveCats(snapshot.cats);
+    }
+    if (snapshot.prefs) {
+      this.savePrefs(snapshot.prefs);
+    }
+
+    DB.set('schema_version', SCHEMA_VERSION);
+    _cache.expenses = null;
+    _cache.trips = null;
+    _cache.cats = null;
+
+    DataLayer.savePrefs({ last_export: null }); // reset export reminder
+  },
+
+  // ── Stats for settings ──
+  getStats() {
+    const all = this.getAllExpenses();
+    const trips = this.getTrips();
+    const usageKB = DB.estimateUsageKB();
+    const backupKeys = DB.keys('auto_backup_').filter(k => DB.get(k) !== null);
+    return {
+      expense_count: all.length,
+      trip_count:    trips.length,
+      usage_kb:      usageKB,
+      backup_count:  backupKeys.length,
+      last_export:   this.getPrefs().last_export,
+    };
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   APPLICATION STATE
+   Single mutable object. State.commit() triggers a re-render.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const State = {
+  page:        'add',
+  prevPage:    null,
+  selCat:      null,
+  selSub:      null,
+  tripMode:    false,
+  tripName:    '',
+  tripStart:   null,
+  tripId:      null,
+  addingSubFor: null,
+
+  commit() { renderPage(this.page); }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+
 function todayStr() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
-function fmtN(n) { return Math.round(n).toLocaleString('th-TH'); }
-function fmtTime(ts) { return new Date(ts).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}); }
-function fmtDateShort(str) {
-  const d = new Date(str + 'T00:00:00');
-  return d.toLocaleDateString('th-TH',{month:'short',day:'numeric'});
-}
-function fmtDateLong(str) {
-  const d = new Date(str + 'T00:00:00');
-  return d.toLocaleDateString('th-TH',{weekday:'long',month:'long',day:'numeric'});
-}
-function fmtMonthLabel() {
-  return new Date().toLocaleDateString('th-TH',{month:'long',year:'numeric'});
-}
-function catById(id) { return getCats().find(c => c.id === id) || getCats().slice(-1)[0]; }
+function pad(n) { return String(n).padStart(2, '0'); }
 
-// ── AMOUNT INPUT ──
+function fmtAmt(n) {
+  const prefs = DataLayer.getPrefs();
+  const safe = Math.round(Number(n) || 0);
+  try {
+    return prefs.currency_symbol + safe.toLocaleString(prefs.currency_locale);
+  } catch {
+    return prefs.currency_symbol + safe.toLocaleString();
+  }
+}
+
+function fmtTime(ts) {
+  const d = new Date(Number(ts));
+  if (isNaN(d.getTime())) return '--:--';
+  try {
+    return d.toLocaleTimeString(DataLayer.getPrefs().currency_locale, { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+function fmtDateShort(str) {
+  if (!isValidDate(str)) return 'Unknown date';
+  const d = new Date(str + 'T00:00:00');
+  if (isNaN(d.getTime())) return 'Unknown date';
+  try {
+    return d.toLocaleDateString(DataLayer.getPrefs().currency_locale, { month: 'short', day: 'numeric' });
+  } catch {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+}
+
+function fmtDateLong(str) {
+  if (!isValidDate(str)) return '';
+  const d = new Date(str + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  try {
+    return d.toLocaleDateString(DataLayer.getPrefs().currency_locale, { weekday: 'long', month: 'long', day: 'numeric' });
+  } catch {
+    return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+}
+
+function fmtMonthYear() {
+  try {
+    return new Date().toLocaleDateString(DataLayer.getPrefs().currency_locale, { month: 'long', year: 'numeric' });
+  } catch {
+    return new Date().toLocaleDateString([], { month: 'long', year: 'numeric' });
+  }
+}
+
+function getTripName(tripId) {
+  if (State.tripMode && tripId === State.tripId) return State.tripName;
+  const t = DataLayer.getTrips().find(t => t.id === tripId);
+  return t ? t.name : 'Trip';
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI: TOAST SYSTEM
+   ═══════════════════════════════════════════════════════════════════ */
+
+function showToast(msg, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  const icons = { success: '✓', error: '✗', info: '◆' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type] || '◆'}</span><span>${esc(msg)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+function showStorageFullWarning() {
+  showToast('Storage nearly full — please export your data!', 'error', 6000);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI: MODAL SYSTEM
+   ═══════════════════════════════════════════════════════════════════ */
+
+const Modal = {
+  _onConfirm: null,
+
+  show(html, onConfirm = null) {
+    this._onConfirm = onConfirm;
+    document.getElementById('modal-box').innerHTML = html;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    // Focus first input after animation
+    setTimeout(() => {
+      const inp = document.querySelector('#modal-box input');
+      if (inp) inp.focus();
+    }, 60);
+  },
+
+  hide() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    this._onConfirm = null;
+  },
+
+  confirm() {
+    if (this._onConfirm) this._onConfirm();
+  }
+};
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) Modal.hide();
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI: AMOUNT INPUT
+   ═══════════════════════════════════════════════════════════════════ */
+
 function setupAmountInput() {
   const inp = document.getElementById('amount-input');
   inp.addEventListener('input', updateAmountDisplay);
@@ -377,128 +1522,119 @@ function setupAmountInput() {
     document.getElementById('amount-cursor').style.display = 'none';
   });
 }
+
 function focusAmount() {
   document.getElementById('amount-input').focus();
   updateAmountDisplay();
 }
+
 function updateAmountDisplay() {
-  const inp = document.getElementById('amount-input');
-  const disp = document.getElementById('amount-display');
-  const placeholder = document.getElementById('amount-placeholder');
-  const val = inp.value;
-  if (val && parseFloat(val) > 0) {
-    placeholder.textContent = '฿' + parseFloat(val).toLocaleString('th-TH', {maximumFractionDigits:2});
-    placeholder.className = '';
+  const val = document.getElementById('amount-input').value;
+  const num = parseFloat(val);
+  const ph  = document.getElementById('amount-placeholder');
+  const hint = document.getElementById('amount-hint');
+  
+  if (val && num > 0) {
+    const prefs = DataLayer.getPrefs();
+    ph.textContent = prefs.currency_symbol + num.toLocaleString(prefs.currency_locale, { maximumFractionDigits: 2 });
+    ph.classList.remove('amount-placeholder');
+    hint.textContent = '';
   } else {
-    placeholder.textContent = '0';
-    placeholder.className = 'placeholder';
+    ph.textContent = '0';
+    ph.className = 'amount-placeholder';
+    hint.textContent = '';
   }
 }
 
-// ── RENDER ALL ──
-function renderAll() {
-  renderTravelBanner();
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER FUNCTIONS
+   All DOM updates live here. Business logic never touches DOM directly.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function renderPage(page) {
+  if (page === 'add')     renderAddPage();
+  if (page === 'summary') renderSummary();
+  if (page === 'history') renderHistory();
+  if (page === 'settings') renderSettings();
+}
+
+function renderAddPage() {
+  const today = todayStr();
+  document.getElementById('add-date-label').textContent = fmtDateLong(today);
+  renderTodayTotal();
+  renderTripBanner();
   renderCatPills();
   renderSubPills();
-  renderTodayTotal();
 }
 
 function renderTodayTotal() {
-  const today = todayStr();
-  const entries = loadDay(today);
-  const total = entries.reduce((s,e) => s+e.amount, 0);
-  document.getElementById('today-total').textContent = '฿' + fmtN(total);
-  const cnt = entries.length;
-  document.getElementById('today-count').textContent = cnt === 0 ? '' : cnt + ' expense' + (cnt>1?'s':'');
+  const entries = DataLayer.getDay(todayStr());
+  const total   = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const cnt     = entries.length;
+  document.getElementById('today-total').textContent = fmtAmt(total);
+  document.getElementById('today-count').textContent =
+    cnt === 0 ? '' : `${cnt} expense${cnt !== 1 ? 's' : ''}`;
 }
 
-function renderTravelBanner() {
-  const el = document.getElementById('travel-banner');
-  if (S.tripMode) {
-    const todayAmt = getAllExpenses().filter(e => e.tripId === S.tripId).reduce((s,e) => s+e.amount, 0);
-    el.innerHTML = `<div class="travel-banner">
-      <div class="travel-dot"></div>
-      <div class="travel-info">
-        <div class="travel-name">✈ ${S.tripName}</div>
-        <div class="travel-meta">On travel · trip total ฿${fmtN(todayAmt)}</div>
-      </div>
-      <button class="travel-btn" onclick="openModal('trip-end')">End trip</button>
-    </div>`;
+function renderTripBanner() {
+  const el = document.getElementById('trip-banner-el');
+  if (State.tripMode) {
+    const tripAmt = DataLayer.getAllExpenses()
+      .filter(e => e.tripId === State.tripId)
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    el.innerHTML = `
+      <div class="trip-banner active-trip">
+        <div class="trip-pulse on"></div>
+        <div class="trip-info">
+          <div class="trip-name on">✈ ${esc(State.tripName)}</div>
+          <div class="trip-meta">On trip · ${fmtAmt(tripAmt)} total</div>
+        </div>
+        <button class="trip-toggle-btn on" onclick="openTripEndModal()">End trip</button>
+      </div>`;
   } else {
-    el.innerHTML = `<div class="travel-banner off">
-      <div class="travel-dot off"></div>
-      <div class="travel-info">
-        <div class="travel-name off">Travel mode off</div>
-        <div class="travel-meta">Tap to start tracking a trip</div>
-      </div>
-      <button class="travel-btn off" onclick="openModal('trip-start')">Start trip</button>
-    </div>`;
+    el.innerHTML = `
+      <div class="trip-banner">
+        <div class="trip-pulse"></div>
+        <div class="trip-info">
+          <div class="trip-name">Travel mode off</div>
+          <div class="trip-meta">Start a trip to track separately</div>
+        </div>
+        <button class="trip-toggle-btn" onclick="openTripStartModal()">Start trip</button>
+      </div>`;
   }
 }
 
 function renderCatPills() {
-  const cats = getCats();
-  const el = document.getElementById('cat-pills');
-  el.innerHTML = cats.map(c =>
-    `<button class="pill${c.id===S.selCat?' active':''}" onmousedown="event.preventDefault()" onclick="selectCat('${c.id}')">${c.label}</button>`
-  ).join('');
+  const cats = DataLayer.getCats();
+  document.getElementById('cat-pills').innerHTML = cats.map(c => `
+    <button
+      class="pill${c.id === State.selCat ? ' active' : ''}"
+      onmousedown="event.preventDefault()"
+      onclick="selectCat('${esc(c.id)}')"
+    >${esc(c.label)}</button>
+  `).join('');
 }
 
 function renderSubPills() {
-  const cat = catById(S.selCat);
-  const el = document.getElementById('sub-pills');
-  el.innerHTML = cat.subs.map(s =>
-    `<button class="sub-pill${s===S.selSub?' active':''}" onmousedown="event.preventDefault()" onclick="selectSub('${s}')">${s}</button>`
-  ).join('');
+  const cat = DataLayer.getCatById(State.selCat);
+  document.getElementById('sub-pills').innerHTML = cat.subs.map(s => `
+    <button
+      class="sub-pill${s === State.selSub ? ' active' : ''}"
+      onmousedown="event.preventDefault()"
+      onclick="selectSub('${esc(s)}')"
+    >${esc(s)}</button>
+  `).join('');
 }
 
-function selectCat(id) {
-  S.selCat = id;
-  S.selSub = catById(id).subs[0];
-  renderCatPills();
-  renderSubPills();
-}
-function selectSub(s) { S.selSub = s; renderSubPills(); }
-
-// ── SAVE EXPENSE ──
-function saveExpense() {
-  const inp = document.getElementById('amount-input');
-  const amt = parseFloat(inp.value);
-  if (!amt || amt <= 0) { focusAmount(); return; }
-  const note = document.getElementById('note-input').value.trim();
-  const date = document.getElementById('date-input').value || todayStr();
-  const arr = loadDay(date);
-  arr.unshift({
-  id: crypto.randomUUID(),
-  amount: amt,
-  category: S.selCat,
-  subcategory: S.selSub,
-  note,
-  date,
-  ts: Date.now(),
-  tripId: S.tripMode ? S.tripId : null
-});
-  saveDay(date, arr);
-  inp.value = '';
-  document.getElementById('note-input').value = '';
-  document.getElementById('date-input').value = todayStr();
-  updateAmountDisplay();
-  renderAll();
-  // pulse feedback
-  const btn = document.querySelector('.save-btn');
-  btn.textContent = '✓ Saved';
-  setTimeout(() => { btn.textContent = 'Save Expense'; }, 1200);
-  if (document.getElementById('page-summary').classList.contains('active')) renderSummary();
-  if (document.getElementById('page-history').classList.contains('active')) renderHistory();
-}
-
-// ── SUMMARY ──
 function renderSummary() {
-  const el = document.getElementById('summary-content');
-  const month = todayStr().slice(0,7);
-  const all = getAllExpenses().filter(e => e.date && e.date.startsWith(month));
-  const total = all.reduce((s,e) => s+e.amount, 0);
-  const cnt = all.length;
+  const el     = document.getElementById('summary-content');
+  const month  = todayStr().slice(0, 7);
+  const all    = DataLayer.getAllExpenses().filter(e => e.date && e.date.startsWith(month));
+  const total  = all.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const cnt    = all.length;
+  const avgDay = total > 0 ? total / new Date().getDate() : 0;
+
+  document.getElementById('summary-period-label').textContent = fmtMonthYear();
 
   if (cnt === 0) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div>No expenses this month yet.</div>`;
@@ -506,569 +1642,745 @@ function renderSummary() {
   }
 
   const bycat = {};
-  all.forEach(e => { bycat[e.category] = (bycat[e.category]||0) + e.amount; });
-  const max = Math.max(...Object.values(bycat));
+  all.forEach(e => {
+    bycat[e.category] = (bycat[e.category] || 0) + (Number(e.amount) || 0);
+  });
+  const maxAmt = Math.max(...Object.values(bycat));
 
-  let h = `<div class="summary-total-block">
-    <div class="summary-total-label">This month</div>
-    <div class="summary-total-amt">฿${fmtN(total)}</div>
-    <div class="summary-total-count">${cnt} expense${cnt!==1?'s':''}</div>
-  </div>`;
-
-  Object.entries(bycat).sort((a,b) => b[1]-a[1]).forEach(([catId, amt]) => {
-    const cat = catById(catId);
-    const pct = Math.round((amt/total)*100);
-    const barW = Math.round((amt/max)*100);
-    h += `<div class="summary-card">
-      <div class="summary-row"><span class="summary-cat">${cat.label}</span><span class="summary-amt">฿${fmtN(amt)}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${barW}%"></div></div>
-      <div class="summary-pct">${pct}% of total</div>
+  let h = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">This month</div>
+        <div class="stat-val">${fmtAmt(total)}</div>
+        <div class="stat-sub">${cnt} expense${cnt !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Daily avg</div>
+        <div class="stat-val">${fmtAmt(Math.round(avgDay))}</div>
+        <div class="stat-sub">per day so far</div>
+      </div>
     </div>`;
+
+  Object.entries(bycat).sort((a, b) => b[1] - a[1]).forEach(([catId, amt]) => {
+    const cat  = DataLayer.getCatById(catId);
+    const pct  = Math.round((amt / total) * 100);
+    const barW = Math.round((amt / maxAmt) * 100);
+    h += `
+      <div class="summary-cat-card">
+        <div class="summary-cat-row">
+          <span class="summary-cat-name">${esc(cat.icon || '')} ${esc(cat.label)}</span>
+          <span class="summary-cat-amt">${fmtAmt(amt)}</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${barW}%"></div></div>
+        <div class="summary-cat-pct">${pct}% of total</div>
+      </div>`;
   });
 
   el.innerHTML = h;
 }
 
-// ── HISTORY ──
 function renderHistory() {
-  const el = document.getElementById('history-content');
-  const trips_el = document.getElementById('past-trips-section');
-  const all = getAllExpenses();
+  const el      = document.getElementById('history-content');
+  const tripsEl = document.getElementById('trips-section');
+  const all     = DataLayer.getAllExpenses();
 
   if (all.length === 0) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>No expenses yet.<br>Add your first one!</div>`;
-    trips_el.innerHTML = '';
+    tripsEl.innerHTML = '';
     return;
   }
 
-  // group by date
+  // Group by date
   const byDate = {};
-  all.forEach(e => { (byDate[e.date] = byDate[e.date]||[]).push(e); });
+  all.forEach(e => {
+    (byDate[e.date] = byDate[e.date] || []).push(e);
+  });
 
   let h = '';
-  Object.entries(byDate).sort((a,b) => b[0].localeCompare(a[0])).forEach(([date, items]) => {
-    const dayTotal = items.reduce((s,e) => s+e.amount, 0);
-    h += `<div class="history-group-label">${fmtDateShort(date)} · ฿${fmtN(dayTotal)}</div><div class="history-card">`;
-    items.forEach((e, index) => {
-      const cat = catById(e.category);
-      const tripName = e.tripId ? getTripName(e.tripId) : '';
-      const tb = tripName ? `<span class="trip-tag">✈ ${tripName}</span>` : '';
-      h += `<div class="history-item">
-        <div class="h-info">
-          <div class="h-cat">${e.note || e.subcategory || cat.label}${tb}</div>
-          <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
-        </div>
-        <div class="h-amt">฿${fmtN(e.amount)}</div>
-        <button class="h-del" onclick="deleteExpenseById('${e.id}', '${e.date}')">×</button>
-      </div>`;
+  Object.entries(byDate)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .forEach(([date, items]) => {
+      const dayTotal = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      h += `<div class="group-label"><span>${esc(fmtDateShort(date))}</span><span class="group-total">${fmtAmt(dayTotal)}</span></div>`;
+      h += `<div class="history-card">`;
+      items.forEach(e => {
+        const cat     = DataLayer.getCatById(e.category);
+        const tripName = e.tripId ? getTripName(e.tripId) : '';
+        const tripChip = tripName ? `<span class="trip-chip">✈ ${esc(tripName)}</span>` : '';
+        h += `
+          <div class="history-item">
+            <div class="h-icon">${esc(cat.icon || '📦')}</div>
+            <div class="h-info">
+              <div class="h-cat">${esc(e.note || e.subcategory || cat.label)}${tripChip}</div>
+              <div class="h-meta">${esc(cat.label)} › ${esc(e.subcategory)} · ${fmtTime(e.ts)}</div>
+            </div>
+            <div class="h-right">
+              <div class="h-amt">${fmtAmt(e.amount)}</div>
+              <div class="h-actions">
+                <button class="icon-btn" onclick="openEditModal('${esc(e.id)}','${esc(e.date)}')" title="Edit">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="icon-btn danger" onclick="confirmDeleteExpense('${esc(e.id)}','${esc(e.date)}')" title="Delete">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>`;
+      });
+      h += `</div>`;
     });
-    h += `</div>`;
-  });
   el.innerHTML = h;
 
   // Past trips
-  const trips = loadTrips().slice().reverse();
-  if (trips.length === 0) { trips_el.innerHTML = ''; return; }
-  let th = `<div class="past-trips-section"><div class="history-group-label" style="margin-top:24px">Past trips</div>`;
+  const trips = DataLayer.getTrips().slice().reverse();
+  if (trips.length === 0) { tripsEl.innerHTML = ''; return; }
+
+  let th = `<div class="section-heading">Past trips</div>`;
   trips.forEach(t => {
-    th += `<div class="trip-card" onclick="viewTrip(${t.id})">
-      <div class="trip-card-header">
-        <span class="trip-card-name">✈ ${t.name}</span>
-        <div class="trip-card-right">
-          <span class="trip-card-total">฿${fmtN(t.total)}</span>
-          <button class="trip-del-btn" onclick="deleteTrip(${t.id},event)">×</button>
+    th += `
+      <div class="trip-card" onclick="viewTrip(${t.id})">
+        <div class="trip-card-top">
+          <span class="trip-card-name">✈ ${esc(t.name)}</span>
+          <div class="trip-card-actions">
+            <span class="trip-card-amt">${fmtAmt(t.total)}</span>
+            <button class="icon-btn danger" onclick="event.stopPropagation();confirmDeleteTrip(${t.id})" title="Delete trip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="trip-card-meta">${fmtDateShort(new Date(t.start).toISOString().slice(0,10))} · ${t.count} expense${t.count!==1?'s':''}</div>
-    </div>`;
+        <div class="trip-card-meta">
+          ${esc(fmtDateShort(new Date(t.start).toISOString().slice(0,10)))}
+          · ${t.count} expense${t.count !== 1 ? 's' : ''}
+        </div>
+      </div>`;
   });
-  th += `</div>`;
-  trips_el.innerHTML = th;
+  tripsEl.innerHTML = th;
 }
 
-function deleteExpenseById(id, date) {
-  const arr = loadDay(date);
+function renderSettings() {
+  const stats = DataLayer.getStats();
+  const usagePct = Math.min(100, Math.round(stats.usage_kb / 51200 * 100)); // 50MB generous cap
 
-  if (!Array.isArray(arr)) return;
+  // Data health indicator
+  let healthClass = 'ok', healthMsg = 'Data looks healthy', healthAction = '';
+  const daysSinceExport = stats.last_export
+    ? Math.floor((Date.now() - new Date(stats.last_export).getTime()) / 86400000)
+    : 999;
 
-  const filtered = arr.filter(e => e.id !== id);
+  if (stats.usage_kb > 3000) {
+    healthClass = 'danger';
+    healthMsg = `Storage at ${stats.usage_kb} KB — export soon!`;
+    healthAction = 'Export now';
+  } else if (daysSinceExport > 30) {
+    healthClass = 'warn';
+    healthMsg = `Last export: ${daysSinceExport > 900 ? 'never' : daysSinceExport + ' days ago'}`;
+    healthAction = 'Export now';
+  }
 
-  saveDay(date, filtered);
+  document.getElementById('data-health-card').innerHTML = `
+    <div class="data-health">
+      <div class="health-dot ${healthClass}"></div>
+      <div class="health-text">${esc(healthMsg)} · ${stats.expense_count} expenses · ${stats.usage_kb} KB</div>
+      ${healthAction ? `<div class="health-action" onclick="doExport()">${esc(healthAction)}</div>` : ''}
+    </div>`;
+
+  document.getElementById('backup-count-label').textContent =
+    `${stats.backup_count} backup${stats.backup_count !== 1 ? 's' : ''} stored locally`;
+
+  const prefs = DataLayer.getPrefs();
+  document.getElementById('currency-label').textContent =
+    `${esc(prefs.currency_symbol)} — ${esc(prefs.currency_locale)}`;
+
+  document.getElementById('app-version-label').innerHTML =
+    `Baht v${APP_VERSION} · Schema v${SCHEMA_VERSION} · ${BUILD_DATE}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS: EXPENSES
+   ═══════════════════════════════════════════════════════════════════ */
+
+function saveExpense() {
+  const inp = document.getElementById('amount-input');
+  const amt = parseFloat(inp.value);
+  if (!amt || amt <= 0) { focusAmount(); showToast('Enter an amount first', 'error', 2000); return; }
+
+  const note  = document.getElementById('note-input').value.trim();
+  const date  = document.getElementById('date-input').value || todayStr();
+
+  const ok = DataLayer.addExpense({
+    amount:      amt,
+    category:    State.selCat,
+    subcategory: State.selSub,
+    note,
+    date,
+    ts:     Date.now(),
+    tripId: State.tripMode ? State.tripId : null,
+  });
+
+  if (!ok) {
+    showToast('Failed to save — storage may be full', 'error');
+    return;
+  }
+
+  // Reset form
+  inp.value = '';
+  document.getElementById('note-input').value = '';
+  document.getElementById('date-input').value = todayStr();
+  updateAmountDisplay();
+
+  // Feedback
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Saved';
+  btn.classList.add('saved');
+  setTimeout(() => {
+    btn.textContent = 'Save Expense';
+    btn.classList.remove('saved');
+  }, 1400);
 
   renderTodayTotal();
-  renderTravelBanner();
+  renderTripBanner();
+  _cache.expenses = null;
+}
+
+function openEditModal(id, date) {
+  const arr = DataLayer.getDay(date);
+  const exp = arr.find(e => e.id === id);
+  if (!exp) { showToast('Expense not found', 'error'); return; }
+
+  Modal.show(`
+    <h3>Edit expense</h3>
+    <p>Update the amount or note for this entry.</p>
+    <input id="edit-amt" type="number" inputmode="decimal" value="${exp.amount}" placeholder="Amount"/>
+    <input id="edit-note" type="text" value="${esc(exp.note)}" placeholder="Note" maxlength="80"/>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+      <button class="btn-pri" onclick="_confirmEdit('${esc(id)}','${esc(date)}')">Save</button>
+    </div>
+  `);
+
+  // Enter key submits
+  setTimeout(() => {
+    document.querySelectorAll('#modal-box input').forEach(inp => {
+      inp.onkeydown = e => { if (e.key === 'Enter') _confirmEdit(id, date); };
+    });
+  }, 60);
+}
+
+function _confirmEdit(id, date) {
+  const amt  = parseFloat(document.getElementById('edit-amt').value);
+  const note = document.getElementById('edit-note').value.trim();
+  if (!amt || amt <= 0) { showToast('Enter a valid amount', 'error', 2000); return; }
+
+  const ok = DataLayer.updateExpense(id, date, { amount: amt, note });
+  Modal.hide();
+
+  if (!ok) { showToast('Failed to update', 'error'); return; }
+  showToast('Expense updated', 'success');
   renderHistory();
-
-  if (document.getElementById('page-summary').classList.contains('active')) {
-    renderSummary();
-  }
-}
-
-function getTripName(tripId) {
-  if (S.tripMode && tripId === S.tripId) return S.tripName;
-  const t = loadTrips().find(t => t.id === tripId);
-  return t ? t.name : 'trip';
-}
-
-function deleteExpense(id, date) {
-  const arr = loadDay(date).filter(e => e.id !== id);
-
-  saveDay(date, arr);
-
   renderTodayTotal();
-  renderTravelBanner();
-  renderHistory();
-
-  if (document.getElementById('page-summary').classList.contains('active')) {
-    renderSummary();
-  }
+  renderSummary();
 }
 
-function deleteTrip(id, ev) {
-  ev.stopPropagation();
-  saveTrips(loadTrips().filter(t => t.id !== id));
+function confirmDeleteExpense(id, date) {
+  Modal.show(`
+    <h3>Delete expense?</h3>
+    <p>This cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+      <button class="btn-danger" onclick="_doDeleteExpense('${esc(id)}','${esc(date)}')">Delete</button>
+    </div>
+  `);
+}
+
+function _doDeleteExpense(id, date) {
+  DataLayer.deleteExpense(id, date);
+  Modal.hide();
+  showToast('Expense deleted', 'info');
   renderHistory();
+  renderTodayTotal();
+  renderTripBanner();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS: CATEGORIES
+   ═══════════════════════════════════════════════════════════════════ */
+
+function selectCat(id) {
+  State.selCat = id;
+  State.selSub = DataLayer.getCatById(id).subs[0];
+  renderCatPills();
+  renderSubPills();
+}
+
+function selectSub(s) {
+  State.selSub = s;
+  renderSubPills();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS: TRIPS
+   ═══════════════════════════════════════════════════════════════════ */
+
+function openTripStartModal() {
+  Modal.show(`
+    <h3>Start a trip</h3>
+    <p>Name this trip to track its expenses separately.</p>
+    <input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="60"/>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+      <button class="btn-pri" onclick="_startTrip()">Start trip</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const inp = document.getElementById('trip-name-in');
+    if (inp) inp.onkeydown = e => { if (e.key === 'Enter') _startTrip(); };
+  }, 60);
+}
+
+function _startTrip() {
+  const nameEl = document.getElementById('trip-name-in');
+  const name   = nameEl ? nameEl.value.trim() : '';
+  if (!name) { showToast('Enter a trip name', 'error', 2000); return; }
+  const id = Date.now();
+  State.tripMode = true;
+  State.tripName = name;
+  State.tripStart = id;
+  State.tripId = id;
+  DataLayer.saveActiveTrip({ name, start: id, id });
+  Modal.hide();
+  showToast(`Trip "${name}" started`, 'success');
+  renderTripBanner();
+}
+
+function openTripEndModal() {
+  const entries = DataLayer.getAllExpenses().filter(e => e.tripId === State.tripId);
+  const total   = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  Modal.show(`
+    <h3>End trip?</h3>
+    <p>"${esc(State.tripName)}"<br>${entries.length} expense${entries.length !== 1 ? 's' : ''} · ${fmtAmt(total)} total<br><br>This trip will be saved to your history.</p>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Keep going</button>
+      <button class="btn-pri" onclick="_endTrip()">End &amp; save</button>
+    </div>
+  `);
+}
+
+function _endTrip() {
+  const entries = DataLayer.getAllExpenses().filter(e => e.tripId === State.tripId);
+  const total   = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const trips   = DataLayer.getTrips();
+  trips.push({ id: State.tripId, name: State.tripName, start: State.tripStart, end: Date.now(), total, count: entries.length });
+  DataLayer.saveTrips(trips);
+  DataLayer.saveActiveTrip(null);
+  State.tripMode = false; State.tripName = ''; State.tripStart = null; State.tripId = null;
+  Modal.hide();
+  showToast('Trip saved to history', 'success');
+  renderTripBanner();
+  renderTodayTotal();
+  _cache.expenses = null;
 }
 
 function viewTrip(tripId) {
-  const trips = loadTrips();
-  const trip = trips.find(t => t.id === tripId);
+  const trip = DataLayer.getTrips().find(t => t.id === tripId);
   if (!trip) return;
-  const all = getAllExpenses().filter(e => e.tripId === tripId);
-  all.sort((a,b) => a.ts - b.ts);
-  const total = all.reduce((s,e) => s+e.amount, 0);
 
-  let h = `<div class="detail-header">
-    <button class="back-btn" onclick="closeDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="detail-title">✈ ${trip.name}</div>
-    <div class="detail-total">฿${fmtN(total)}</div>
-  </div>`;
+  const entries = DataLayer.getAllExpenses()
+    .filter(e => e.tripId === tripId)
+    .sort((a, b) => a.ts - b.ts);
+  const total = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-  if (all.length === 0) {
+  let h = `
+    <div class="detail-header">
+      <button class="back-btn" onclick="closeDetail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="detail-title">✈ ${esc(trip.name)}</div>
+      <div class="detail-total">${fmtAmt(total)}</div>
+    </div>`;
+
+  if (entries.length === 0) {
     h += `<div class="empty">No entries for this trip.</div>`;
   } else {
     const byDate = {};
-    all.forEach(e => { (byDate[e.date] = byDate[e.date]||[]).push(e); });
-    Object.entries(byDate).sort((a,b) => a[0].localeCompare(b[0])).forEach(([date, items]) => {
-      h += `<div class="detail-date-group">${fmtDateShort(date)}</div><div class="history-card">`;
+    entries.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+    Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0])).forEach(([date, items]) => {
+      const dayTotal = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      h += `<div class="group-label"><span>${esc(fmtDateShort(date))}</span><span class="group-total">${fmtAmt(dayTotal)}</span></div>`;
+      h += `<div class="history-card">`;
       items.forEach(e => {
-        const cat = catById(e.category);
-        h += `<div class="history-item">
-          <div class="h-info">
-            <div class="h-cat">${e.note || e.subcategory || cat.label}</div>
-            <div class="h-meta">${cat.label} › ${e.subcategory} · ${fmtTime(e.ts)}</div>
-          </div>
-          <div class="h-amt">฿${fmtN(e.amount)}</div>
-        </div>`;
+        const cat = DataLayer.getCatById(e.category);
+        h += `
+          <div class="history-item">
+            <div class="h-icon">${esc(cat.icon || '📦')}</div>
+            <div class="h-info">
+              <div class="h-cat">${esc(e.note || e.subcategory || cat.label)}</div>
+              <div class="h-meta">${esc(cat.label)} › ${esc(e.subcategory)} · ${fmtTime(e.ts)}</div>
+            </div>
+            <div class="h-amt">${fmtAmt(e.amount)}</div>
+          </div>`;
       });
       h += `</div>`;
     });
   }
 
   document.getElementById('trip-detail-content').innerHTML = h;
-  S.prevPage = S.page;
+  State.prevPage = State.page;
   showPage('trip-detail', null);
 }
 
 function closeDetail() {
-  showPage(S.prevPage || 'history', document.getElementById('nav-' + (S.prevPage||'history')));
+  showPage(State.prevPage || 'history', document.getElementById('nav-' + (State.prevPage || 'history')));
 }
 
-// ── CATEGORY EDITOR ──
+function confirmDeleteTrip(id) {
+  Modal.show(`
+    <h3>Delete trip?</h3>
+    <p>The trip record and its summary will be removed.<br>Your individual expenses will remain in history.</p>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+      <button class="btn-danger" onclick="_doDeleteTrip(${id})">Delete</button>
+    </div>
+  `);
+}
+
+function _doDeleteTrip(id) {
+  DataLayer.saveTrips(DataLayer.getTrips().filter(t => t.id !== id));
+  Modal.hide();
+  showToast('Trip deleted', 'info');
+  renderHistory();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS: CATEGORY EDITOR
+   ═══════════════════════════════════════════════════════════════════ */
+
 function openEditor() {
-  S.addingSubFor = null;
+  State.addingSubFor = null;
   renderEditor();
-  S.prevPage = S.page;
+  State.prevPage = State.page;
   showPage('editor', null);
 }
+
 function closeEditor() {
   renderCatPills();
   renderSubPills();
-  showPage(S.prevPage || 'history', document.getElementById('nav-' + (S.prevPage||'history')));
+  showPage(State.prevPage || 'history', document.getElementById('nav-' + (State.prevPage || 'history')));
 }
+
 function renderEditor() {
-  const cats = getCats();
+  const cats = DataLayer.getCats();
   let h = '';
   cats.forEach(cat => {
-    h += `<div class="editor-cat-block"><div class="editor-cat-row"><div class="editor-cat-name">${cat.label}</div></div><div class="editor-subs">`;
+    h += `<div class="editor-block">`;
+    h += `<div class="editor-cat-row">
+      <div class="editor-cat-icon">${esc(cat.icon || '')}</div>
+      <div class="editor-cat-name">${esc(cat.label)}</div>
+    </div>`;
+    h += `<div class="editor-subs">`;
     cat.subs.forEach(s => {
       const isOther = s === 'Other';
-      h += `<div class="editor-chip${isOther?' is-other':''}">${s}`;
-      if (!isOther) h += `<button class="chip-del" onclick="deleteSub('${cat.id}','${s}')">×</button>`;
+      h += `<div class="editor-chip${isOther ? ' is-other' : ''}">${esc(s)}`;
+      if (!isOther) h += `<button class="chip-del" onclick="deleteSub('${esc(cat.id)}','${esc(s)}')">×</button>`;
       h += `</div>`;
     });
-    if (S.addingSubFor === cat.id) {
-      h += `<input id="new-sub-in" class="new-sub-input" type="text" placeholder="Name…" maxlength="24"/>
-            <button class="confirm-sub-btn" onclick="confirmAddSub('${cat.id}')">Add</button>
-            <button class="cancel-sub-btn" onclick="S.addingSubFor=null;renderEditor()">✕</button>`;
+    if (State.addingSubFor === cat.id) {
+      h += `<input id="new-sub-in" class="new-sub-input" type="text" placeholder="Name…" maxlength="30"/>
+            <button class="confirm-sub-btn" onclick="confirmAddSub('${esc(cat.id)}')">Add</button>
+            <button class="cancel-sub-btn" onclick="State.addingSubFor=null;renderEditor()">✕</button>`;
     } else {
-      h += `<button class="add-sub-btn" onclick="S.addingSubFor='${cat.id}';renderEditor()">+ Add</button>`;
+      h += `<button class="add-sub-btn" onclick="State.addingSubFor='${esc(cat.id)}';renderEditor()">+ Add</button>`;
     }
     h += `</div></div>`;
   });
   document.getElementById('editor-content').innerHTML = h;
-  if (S.addingSubFor) {
+
+  if (State.addingSubFor) {
     const inp = document.getElementById('new-sub-in');
-    if (inp) { inp.focus(); inp.onkeydown = e => { if(e.key==='Enter') confirmAddSub(S.addingSubFor); if(e.key==='Escape'){S.addingSubFor=null;renderEditor();} }; }
+    if (inp) {
+      inp.focus();
+      inp.onkeydown = e => {
+        if (e.key === 'Enter')  confirmAddSub(State.addingSubFor);
+        if (e.key === 'Escape') { State.addingSubFor = null; renderEditor(); }
+      };
+    }
   }
 }
+
 function deleteSub(catId, sub) {
-  const cats = getCats();
-  const cat = cats.find(c => c.id === catId);
+  const cats = DataLayer.getCats();
+  const cat  = cats.find(c => c.id === catId);
   if (!cat || sub === 'Other') return;
   cat.subs = cat.subs.filter(s => s !== sub);
-  saveCats(cats);
-  if (S.selCat === catId && S.selSub === sub) S.selSub = cat.subs[0] || 'Other';
+  DataLayer.saveCats(cats);
+  if (State.selCat === catId && State.selSub === sub) State.selSub = cat.subs[0] || 'Other';
   renderEditor();
 }
+
 function confirmAddSub(catId) {
   const inp = document.getElementById('new-sub-in');
   if (!inp) return;
   const val = inp.value.trim();
   if (!val) return;
-  const cats = getCats();
-  const cat = cats.find(c => c.id === catId);
-  if (!cat || cat.subs.includes(val)) return;
+  const cats = DataLayer.getCats();
+  const cat  = cats.find(c => c.id === catId);
+  if (!cat || cat.subs.includes(val)) { showToast('Already exists', 'error', 2000); return; }
   const idx = cat.subs.indexOf('Other');
   if (idx >= 0) cat.subs.splice(idx, 0, val); else cat.subs.push(val);
-  saveCats(cats);
-  S.addingSubFor = null;
+  DataLayer.saveCats(cats);
+  State.addingSubFor = null;
   renderEditor();
 }
 
-// ── MODALS ──
-function openModal(type) {
-  const overlay = document.getElementById('modal-overlay');
-  const box = document.getElementById('modal-box');
-  overlay.classList.remove('hidden');
-  if (type === 'trip-start') {
-    box.innerHTML = `<h3>Start a trip</h3><p>Name this trip to group its expenses separately.</p>
-      <input id="trip-name-in" type="text" placeholder="e.g. Chiang Mai weekend" maxlength="40"/>
-      <div class="modal-btns">
-        <button class="btn-sec" onclick="closeModal()">Cancel</button>
-        <button class="btn-pri" onclick="doStartTrip()">Start</button>
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIONS: EXPORT / IMPORT / BACKUP
+   ═══════════════════════════════════════════════════════════════════ */
+
+function doExport() {
+  const snapshot = DataLayer.exportSnapshot();
+  const json     = JSON.stringify(snapshot, null, 2);
+  const blob     = new Blob([json], { type: 'application/json' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href         = url;
+  a.download     = `baht-backup-${todayStr()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  DataLayer.savePrefs({ last_export: new Date().toISOString() });
+  showToast('Data exported successfully', 'success');
+  if (State.page === 'settings') renderSettings();
+}
+
+function doImport() {
+  document.getElementById('import-file-input').click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const expCount = Array.isArray(data.expenses) ? data.expenses.length : 0;
+
+      Modal.show(`
+        <h3>Restore backup?</h3>
+        <p>This backup contains <strong>${expCount} expenses</strong>.<br><br>
+        Your current data will be overwritten. A safety backup will be created first so you can recover if needed.</p>
+        <div class="modal-btns">
+          <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+          <button class="btn-pri" onclick="Modal.confirm()">Restore</button>
+        </div>
+      `, () => {
+        try {
+          DataLayer.importSnapshot(data);
+          showToast(`Restored ${expCount} expenses`, 'success');
+          Modal.hide();
+          init(); // re-init state
+        } catch (err) {
+          showToast('Restore failed: ' + err.message, 'error', 5000);
+        }
+      });
+    } catch {
+      showToast('Invalid backup file', 'error');
+    }
+    event.target.value = ''; // allow re-import of same file
+  };
+  reader.readAsText(file);
+}
+
+function viewBackups() {
+  const backupKeys = ['auto_backup_0', 'auto_backup_1', 'auto_backup_2', 'pre_import_backup'];
+  let found = [];
+  for (const key of backupKeys) {
+    const b = DB.get(key);
+    if (b && b.backed_up_at) {
+      found.push({ key, backup: b });
+    }
+  }
+
+  if (found.length === 0) {
+    showToast('No auto-backups found yet', 'info');
+    return;
+  }
+
+  let html = `<h3>Auto-backups</h3><p>These are automatically created before each app update. Tap one to restore.</p>`;
+  found.forEach(({ key, backup }) => {
+    const date  = new Date(backup.backed_up_at).toLocaleString();
+    const count = Array.isArray(backup.expenses) ? backup.expenses.length : '?';
+    html += `
+      <div class="settings-item" style="margin-bottom:8px;cursor:pointer" onclick="_restoreAutoBackup('${key}')">
+        <div class="settings-item-text">
+          <div class="label" style="font-size:13px">${esc(date)}</div>
+          <div class="sublabel">${count} expenses · v${backup.from_version || '?'} → v${backup.to_version || '?'}</div>
+        </div>
+        <div class="settings-item-right" style="color:var(--accent2);font-size:12px;font-weight:500">Restore</div>
       </div>`;
-    setTimeout(() => {
-      const inp = document.getElementById('trip-name-in');
-      if (inp) { inp.focus(); inp.onkeydown = e => { if(e.key==='Enter') doStartTrip(); }; }
-    }, 50);
-  } else if (type === 'trip-end') {
-    const tripEntries = getAllExpenses().filter(e => e.tripId === S.tripId);
-    const total = tripEntries.reduce((s,e) => s+e.amount, 0);
-    box.innerHTML = `<h3>End trip?</h3><p>"${S.tripName}"<br>${tripEntries.length} expense${tripEntries.length!==1?'s':''} · ฿${fmtN(total)} total.<br>This trip will be saved to history.</p>
-      <div class="modal-btns">
-        <button class="btn-sec" onclick="closeModal()">Keep going</button>
-        <button class="btn-pri" onclick="doEndTrip()">End & save</button>
-      </div>`;
+  });
+  html += `<button class="btn-sec" style="width:100%;margin-top:4px" onclick="Modal.hide()">Close</button>`;
+  Modal.show(html);
+}
+
+function _restoreAutoBackup(key) {
+  const backup = DB.get(key);
+  if (!backup) { showToast('Backup not found', 'error'); return; }
+  try {
+    DataLayer.importSnapshot(backup);
+    showToast('Backup restored successfully', 'success');
+    Modal.hide();
+    init();
+  } catch (err) {
+    showToast('Restore failed: ' + err.message, 'error', 5000);
   }
 }
-function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-function doStartTrip() {
-  const inp = document.getElementById('trip-name-in');
-  const name = (inp && inp.value.trim()) || 'My trip';
-  const id = Date.now();
-  S.tripMode = true; S.tripName = name; S.tripStart = Date.now(); S.tripId = id;
-  saveActiveTrip({name, start: S.tripStart, id});
-  closeModal(); renderAll();
-}
-function doEndTrip() {
-  const entries = getAllExpenses().filter(e => e.tripId === S.tripId);
-  const total = entries.reduce((s,e) => s+e.amount, 0);
-  const trips = loadTrips();
-  trips.push({id: S.tripId, name: S.tripName, start: S.tripStart, end: Date.now(), total, count: entries.length});
-  saveTrips(trips); saveActiveTrip(null);
-  S.tripMode = false; S.tripName = ''; S.tripStart = null; S.tripId = null;
-  closeModal(); renderAll(); renderHistory();
+
+function confirmClearAll() {
+  Modal.show(`
+    <h3>Clear all data?</h3>
+    <p>⚠️ This will permanently delete ALL expenses, trips, and categories.<br><br>This cannot be undone. Export your data first if you want to keep it.</p>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
+      <button class="btn-danger" onclick="_doClearAll()">Delete everything</button>
+    </div>
+  `);
 }
 
-// ── PAGE SWITCHING ──
+function _doClearAll() {
+  // Safety export first
+  const snapshot = DataLayer.exportSnapshot();
+  DB.set('pre_clear_backup', snapshot);
+
+  // Clear expense keys
+  const expKeys = DB.keys('exp_');
+  for (const k of expKeys) DB.remove(k);
+
+  // Clear app keys
+  DB.remove('trips_v5');
+  DB.remove('active_trip_v5');
+  DB.remove('cats_v5');
+  DB.remove('prefs_v5');
+  DB.remove('schema_version');
+
+  _cache.expenses = null;
+  _cache.trips = null;
+  _cache.cats = null;
+
+  Modal.hide();
+  showToast('All data cleared', 'info');
+  init();
+}
+
+function openCurrencyModal() {
+  const prefs = DataLayer.getPrefs();
+  const options = [
+    { symbol: '฿', locale: 'th-TH', label: 'Thai Baht (฿)' },
+    { symbol: '$', locale: 'en-US', label: 'US Dollar ($)' },
+    { symbol: '€', locale: 'de-DE', label: 'Euro (€)' },
+    { symbol: '£', locale: 'en-GB', label: 'British Pound (£)' },
+    { symbol: '¥', locale: 'ja-JP', label: 'Japanese Yen (¥)' },
+    { symbol: '₩', locale: 'ko-KR', label: 'Korean Won (₩)' },
+    { symbol: 'S$', locale: 'en-SG', label: 'SGD (S$)' },
+  ];
+
+  let h = `<h3>Currency</h3><p>Choose how amounts are displayed.</p>`;
+  options.forEach(o => {
+    const active = o.symbol === prefs.currency_symbol;
+    h += `
+      <div class="settings-item" style="margin-bottom:6px;${active ? 'border-color:var(--accent-border);' : ''}" onclick="_setCurrency('${o.symbol}','${o.locale}')">
+        <span style="font-size:14px">${esc(o.label)}</span>
+        ${active ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
+      </div>`;
+  });
+  h += `<button class="btn-sec" style="width:100%;margin-top:4px" onclick="Modal.hide()">Close</button>`;
+  Modal.show(h);
+}
+
+function _setCurrency(symbol, locale) {
+  DataLayer.savePrefs({ currency_symbol: symbol, currency_locale: locale });
+  Modal.hide();
+  renderSettings();
+  renderTodayTotal();
+  showToast('Currency updated', 'success');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE ROUTING
+   ═══════════════════════════════════════════════════════════════════ */
+
 function showPage(pageId, btnEl) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + pageId).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const pageEl = document.getElementById('page-' + pageId);
+  if (!pageEl) { console.warn(`Page not found: page-${pageId}`); return; }
+  pageEl.classList.add('active');
+
   if (btnEl) btnEl.classList.add('active');
-  S.page = pageId;
-  if (pageId === 'summary') renderSummary();
-  if (pageId === 'history') renderHistory();
+  State.page = pageId;
   window.scrollTo(0, 0);
+  renderPage(pageId);
 }
 
-// ── CLOSE MODAL ON OVERLAY CLICK ──
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+/* ═══════════════════════════════════════════════════════════════════
+   STARTUP
+   Order matters:
+     1. Migrations.run() — fix any old data before anything reads it
+     2. init()           — load state, render UI
+   ═══════════════════════════════════════════════════════════════════ */
 
-init();
+function init() {
+  // Load state
+  const cats = DataLayer.getCats();
+  State.selCat = cats[0].id;
+  State.selSub = cats[0].subs[0];
+
+  const at = DataLayer.getActiveTrip();
+  if (at) {
+    State.tripMode  = true;
+    State.tripName  = at.name;
+    State.tripStart = at.start;
+    State.tripId    = at.id;
+  } else {
+    State.tripMode = false;
+  }
+
+  // Set form defaults
+  const today = todayStr();
+  const dateInp = document.getElementById('date-input');
+  if (dateInp) dateInp.value = today;
+
+  // Render initial page
+  renderAddPage();
+  setupAmountInput();
+
+  // Check storage health
+  const usageKB = DB.estimateUsageKB();
+  if (usageKB > 3000) {
+    setTimeout(() => showToast(`Storage at ${usageKB} KB — consider exporting`, 'error', 5000), 1000);
+  }
+}
+
+// ── BOOT SEQUENCE ──
+try {
+  Migrations.run();   // Fix data first
+  init();             // Then initialize app
+} catch (err) {
+  console.error('[BOOT] Fatal error:', err);
+  // Show a user-friendly recovery message
+  document.body.innerHTML = `
+    <div style="padding:40px 24px;font-family:sans-serif;color:#fff;text-align:center;max-width:400px;margin:0 auto">
+      <div style="font-size:40px;margin-bottom:16px">⚠️</div>
+      <h2 style="margin-bottom:12px">Something went wrong</h2>
+      <p style="color:#888;font-size:14px;line-height:1.6;margin-bottom:24px">
+        The app failed to start. Your data is safe.<br><br>
+        Error: ${esc(err.message)}
+      </p>
+      <button onclick="location.reload()" style="background:#6c63ff;border:none;color:#fff;padding:14px 28px;border-radius:12px;font-size:15px;cursor:pointer">Try again</button>
+    </div>`;
+}
 </script>
 </body>
 </html>
-
-<!-- 1. Replace .pills-scroll CSS -->
-<style>
-.pills-scroll {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 2px;
-}
-
-.sub-pills-scroll {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  padding-bottom: 2px;
-}
-</style>
-
-<script>
-// ADD BELOW STORAGE HELPERS
-
-const DATA_VERSION = 5;
-
-function sanitizeExpense(e = {}) {
-  const cats = getCats();
-
-  const safeCategory = cats.find(c => c.id === e.category)
-    ? e.category
-    : 'other';
-
-  const safeSub = typeof e.subcategory === 'string' && e.subcategory.trim()
-    ? e.subcategory
-    : 'Other';
-
-  const safeAmount = Number(e.amount);
-
-  const safeDate = typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)
-    ? e.date
-    : todayStr();
-
-  const safeTs = Number(e.ts) || Date.now();
-
-  return {
-    amount: isNaN(safeAmount) ? 0 : safeAmount,
-    category: safeCategory,
-    subcategory: safeSub,
-    note: typeof e.note === 'string' ? e.note : '',
-    date: safeDate,
-    ts: safeTs,
-    tripId: e.tripId || null,
-  };
-}
-
-function migrateDataIfNeeded() {
-  const currentVersion = LS.get('data_version') || 0;
-
-  if (currentVersion >= DATA_VERSION) return;
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-
-    if (k && k.startsWith('exp_')) {
-      const arr = LS.get(k) || [];
-
-      const migrated = arr
-        .filter(Boolean)
-        .map(e => normalizeExpense(sanitizeExpense(e)));
-
-      LS.set(k, migrated);
-    }
-  }
-
-  LS.set('data_version', DATA_VERSION);
-}
-
-// REPLACE getAllExpenses()
-function normalizeExpense(e) {
-  if (!e || typeof e !== 'object') return null;
-
-  const amount = Number(e.amount);
-
-  return {
-    id: e.id || ('exp_' + Math.random().toString(36).slice(2) + Date.now()),
-    amount: isNaN(amount) ? 0 : amount,
-    category: e.category || 'other',
-    subcategory: e.subcategory || 'Other',
-    note: e.note || '',
-    date: e.date || todayStr(),
-    ts: Number(e.ts) || Date.now(),
-    tripId: e.tripId || null
-  };
-}
-
-function getAllExpenses() {
-  const all = [];
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-
-    if (!k || !k.startsWith('exp_')) continue;
-
-    try {
-      const raw = localStorage.getItem(k);
-
-      if (!raw) continue;
-
-      const arr = JSON.parse(raw);
-
-      if (!Array.isArray(arr)) continue;
-
-      arr.forEach(item => {
-        const fixed = normalizeExpense(item);
-
-        if (fixed) {
-          all.push(fixed);
-        }
-      });
-
-    } catch (err) {
-      console.error('Broken expense data:', k, err);
-    }
-  }
-
-  return all.sort((a, b) => b.ts - a.ts);
-}
-
-// REPLACE loadDay()
-function loadDay(dateStr) {
-  try {
-    const arr = LS.get(dayKey(dateStr));
-
-    if (!Array.isArray(arr)) return [];
-
-    return arr
-      .map(normalizeExpense)
-      .filter(Boolean);
-
-  } catch {
-    return [];
-  }
-}
-
-// REPLACE fmtN()
-function fmtN(n) {
-  const safe = Number(n) || 0;
-  return Math.round(safe).toLocaleString('th-TH');
-}
-
-// REPLACE fmtDateShort()
-function fmtDateShort(str) {
-  if (!str || typeof str !== 'string') {
-    return 'Unknown date';
-  }
-
-  const d = new Date(str + 'T00:00:00');
-
-  if (isNaN(d.getTime())) {
-    return 'Unknown date';
-  }
-
-  return d.toLocaleDateString('th-TH', {
-    month:'short',
-    day:'numeric'
-  });
-}
-
-// REPLACE fmtTime()
-function fmtTime(ts) {
-  const d = new Date(Number(ts));
-
-  if (isNaN(d.getTime())) {
-    return '--:--';
-  }
-
-  return d.toLocaleTimeString('th-TH', {
-    hour:'2-digit',
-    minute:'2-digit'
-  });
-}
-
-// ADD EDIT FEATURE
-function editExpense(ts, date) {
-  const arr = loadDay(date);
-
-  const idx = arr.findIndex(e => e.ts === ts);
-
-  if (idx === -1) return;
-
-  const exp = arr[idx];
-
-  openEditModal(exp, updated => {
-    arr[idx] = sanitizeExpense({
-      ...exp,
-      ...updated,
-    });
-
-    saveDay(date, arr);
-
-    renderTodayTotal();
-    renderTravelBanner();
-    renderHistory();
-    renderSummary();
-  });
-}
-
-function openEditModal(exp, onSave) {
-  const overlay = document.getElementById('modal-overlay');
-  const box = document.getElementById('modal-box');
-
-  overlay.classList.remove('hidden');
-
-  box.innerHTML = `
-    <h3>Edit expense</h3>
-
-    <input
-      id="edit-amount"
-      type="number"
-      value="${exp.amount}"
-      placeholder="Amount"
-    />
-
-    <input
-      id="edit-note"
-      type="text"
-      value="${exp.note || ''}"
-      placeholder="Note"
-    />
-
-    <div class="modal-btns">
-      <button class="btn-sec" onclick="closeModal()">Cancel</button>
-      <button class="btn-pri" onclick="confirmEditExpense()">Save</button>
-    </div>
-  `;
-
-  window.confirmEditExpense = function() {
-    const amount = Number(document.getElementById('edit-amount').value);
-
-    const note = document
-      .getElementById('edit-note')
-      .value
-      .trim();
-
-    onSave({
-      amount: amount || exp.amount,
-      note,
-    });
-
-    closeModal();
-  };
-}
-
-// IMPORTANT
-// Replace ALL:
-// s + e.amount
-// WITH:
-// s + (Number(e.amount) || 0)
-
-// IMPORTANT
-// Replace delete button with:
-// <button class="h-del" onclick="editExpense(${e.ts}, '${e.date}')">✎</button>
-// <button class="h-del" onclick="deleteExpense(${e.ts}, '${e.date}')">×</button>
-
-// IMPORTANT STARTUP CHANGE
-// Replace:
-// init();
-// with:
-// migrateDataIfNeeded();
-// init();
-</script>
-
