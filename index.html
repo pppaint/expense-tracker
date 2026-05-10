@@ -592,6 +592,79 @@ input[type="date"].text-input { color-scheme: dark; }
 .stat-val { font-size: 22px; font-weight: 700; font-family: var(--mono); letter-spacing: -1px; color: var(--accent2); }
 .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
+/* ── SUMMARY UNIFIED CARD ── */
+.summary-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.summary-hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+.summary-hero-stat {
+  padding: 14px 12px;
+  border-right: 1px solid var(--border);
+}
+.summary-hero-stat:last-child { border-right: none; }
+.summary-hero-stat .s-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--hint);
+  margin-bottom: 5px;
+}
+.summary-hero-stat .s-val {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--accent2);
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.summary-hero-stat .s-sub {
+  font-size: 10px;
+  color: var(--hint);
+  margin-top: 2px;
+}
+.summary-hero-body {
+  padding: 18px 16px 14px;
+}
+.summary-view-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s;
+}
+.summary-view-timeline:active { background: var(--surface2); }
+.summary-view-timeline-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent2);
+}
+.summary-view-timeline svg {
+  width: 14px; height: 14px;
+  stroke: var(--accent2);
+  flex-shrink: 0;
+}
+.summary-view-timeline-hint {
+  font-size: 11px;
+  color: var(--hint);
+}
+
 /* ── DONUT CHART ── */
 .donut-section {
   background: var(--surface);
@@ -1760,14 +1833,13 @@ const DONUT_COLORS = [
   '#f9d342', // yellow
 ];
 
-function buildDonutHTML(bycat, total) {
+function buildDonutHTML(bycat, total, statsRow) {
   const r = 80, cx = 90, cy = 90;
   const circumference = 2 * Math.PI * r;
   const entries = Object.entries(bycat).sort((a, b) => b[1] - a[1]);
 
   let offset = 0;
   let segments = '';
-
   const gap = entries.length > 1 ? 1.5 : 0;
 
   entries.forEach(([catId, amt], i) => {
@@ -1803,19 +1875,29 @@ function buildDonutHTML(bycat, total) {
   }).join('');
 
   return `
-    <div class="donut-section">
-      <div class="donut-title">Spending breakdown</div>
-      <div class="donut-svg-container" style="width:180px;height:180px;margin:0 auto 20px">
-        <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" style="width:180px;height:180px;transform:rotate(-90deg)">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="22"/>
-          ${segments}
-        </svg>
-        <div class="donut-center">
-          <div class="donut-center-amt" style="font-size:18px">${fmtAmt(total)}</div>
-          <div class="donut-center-label">total</div>
+    <div class="summary-hero">
+      ${statsRow}
+      <div class="summary-hero-body">
+        <div class="donut-title">Spending breakdown</div>
+        <div class="donut-svg-container" style="width:180px;height:180px;margin:0 auto 20px">
+          <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" style="width:180px;height:180px;transform:rotate(-90deg)">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="22"/>
+            ${segments}
+          </svg>
+          <div class="donut-center">
+            <div class="donut-center-amt" style="font-size:18px">${fmtAmt(total)}</div>
+            <div class="donut-center-label">total</div>
+          </div>
         </div>
+        <div class="donut-legend" style="display:flex;flex-direction:column;gap:11px">${legendItems}</div>
       </div>
-      <div class="donut-legend" style="display:flex;flex-direction:column;gap:11px">${legendItems}</div>
+      <div class="summary-view-timeline" onclick="openTimelineModal()">
+        <div class="summary-view-timeline-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 14 10 16 16 13"/></svg>
+          View daily breakdown
+        </div>
+        <div class="summary-view-timeline-hint">Daily chart + activity ›</div>
+      </div>
     </div>`;
 }
 
@@ -1868,12 +1950,15 @@ function openTimelineModal() {
   let activityHTML = '';
   recent.forEach(e => {
     const cat = DataLayer.getCatById(e.category);
+    const subLabel = e.subcategory && e.subcategory !== 'Other' && e.subcategory !== cat.label
+      ? ` › ${e.subcategory}` : '';
+    const noteLabel = e.note ? `"${e.note}"` : null;
     activityHTML += `
       <div class="tl-activity-item">
         <div class="tl-activity-icon">${esc(cat.icon || '📦')}</div>
         <div class="tl-activity-info">
-          <div class="tl-activity-name">${esc(e.note || e.subcategory || cat.label)}</div>
-          <div class="tl-activity-meta">${esc(fmtDateShort(e.date))} · ${esc(cat.label)}</div>
+          <div class="tl-activity-name">${esc(cat.label)}${esc(subLabel)}</div>
+          <div class="tl-activity-meta">${noteLabel ? esc(noteLabel) + ' · ' : ''}${esc(fmtDateShort(e.date))} · ${fmtTime(e.ts)}</div>
         </div>
         <div class="tl-activity-amt">${fmtAmt(e.amount)}</div>
       </div>`;
@@ -2019,7 +2104,8 @@ function renderSummary() {
   const all   = DataLayer.getAllExpenses().filter(e => e.date && e.date.startsWith(month));
   const total = all.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const cnt   = all.length;
-  const avgDay = total > 0 ? total / new Date().getDate() : 0;
+  const daysElapsed = new Date().getDate();
+  const avgDay = total > 0 ? total / daysElapsed : 0;
 
   document.getElementById('summary-period-label').textContent = fmtMonthYear();
 
@@ -2028,29 +2114,41 @@ function renderSummary() {
     return;
   }
 
+  // Per-category totals
   const bycat = {};
   all.forEach(e => {
     bycat[e.category] = (bycat[e.category] || 0) + (Number(e.amount) || 0);
   });
 
-  let h = `
-    <div class="stat-grid">
-      <div class="stat-card tappable" onclick="openTimelineModal()">
-        <div class="stat-label">This month</div>
-        <div class="stat-val">${fmtAmt(total)}</div>
-        <div class="stat-sub">${cnt} expense${cnt !== 1 ? 's' : ''}</div>
+  // Peak day calculation
+  const byDay = {};
+  all.forEach(e => {
+    byDay[e.date] = (byDay[e.date] || 0) + (Number(e.amount) || 0);
+  });
+  const peakEntry = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
+  const peakAmt  = peakEntry ? peakEntry[1] : 0;
+  const peakDate = peakEntry ? fmtDateShort(peakEntry[0]) : '—';
+
+  const statsRow = `
+    <div class="summary-hero-stats">
+      <div class="summary-hero-stat">
+        <div class="s-label">This month</div>
+        <div class="s-val">${fmtAmt(total)}</div>
+        <div class="s-sub">${cnt} expense${cnt !== 1 ? 's' : ''}</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Daily avg</div>
-        <div class="stat-val">${fmtAmt(Math.round(avgDay))}</div>
-        <div class="stat-sub">per day so far</div>
+      <div class="summary-hero-stat">
+        <div class="s-label">Daily avg</div>
+        <div class="s-val">${fmtAmt(Math.round(avgDay))}</div>
+        <div class="s-sub">over ${daysElapsed} days</div>
+      </div>
+      <div class="summary-hero-stat">
+        <div class="s-label">Peak day</div>
+        <div class="s-val">${fmtAmt(peakAmt)}</div>
+        <div class="s-sub">${esc(peakDate)}</div>
       </div>
     </div>`;
 
-  // Donut chart (replaces flat bars)
-  h += buildDonutHTML(bycat, total);
-
-  el.innerHTML = h;
+  el.innerHTML = buildDonutHTML(bycat, total, statsRow);
 }
 
 function renderHistory() {
