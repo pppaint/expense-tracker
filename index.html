@@ -609,17 +609,12 @@ input[type="date"].text-input { color-scheme: dark; }
   margin-bottom: 16px;
 }
 .donut-wrap {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+  display: block;
 }
 .donut-svg-container {
   position: relative;
-  flex-shrink: 0;
-  width: 130px;
-  height: 130px;
 }
-.donut-svg-container svg { width: 130px; height: 130px; transform: rotate(-90deg); }
+.donut-svg-container svg { transform: rotate(-90deg); }
 .donut-center {
   position: absolute;
   inset: 0;
@@ -1754,65 +1749,73 @@ function updateAmountDisplay() {
    ═══════════════════════════════════════════════════════════════════ */
 
 const DONUT_COLORS = [
-  '#22c48a', '#4dd9a8', '#6ee7bc',
-  '#ffaa40', '#ff7e5f', '#ff5858',
-  '#6688ff', '#aa66ff', '#44bbff',
+  '#22c48a', // green       (Food)
+  '#44bbff', // sky blue    (Transport)
+  '#ffaa40', // amber       (Bills)
+  '#aa66ff', // violet      (Shopping)
+  '#ff5858', // red         (Activities)
+  '#ff7e5f', // coral       (Health)
+  '#4dd9a8', // mint        (Other)
+  '#6688ff', // periwinkle
+  '#f9d342', // yellow
 ];
 
 function buildDonutHTML(bycat, total) {
-  const r = 50, cx = 65, cy = 65;
+  const r = 80, cx = 90, cy = 90;
   const circumference = 2 * Math.PI * r;
   const entries = Object.entries(bycat).sort((a, b) => b[1] - a[1]);
 
   let offset = 0;
   let segments = '';
-  let legendItems = '';
 
-  const gap = entries.length > 1 ? 1.5 : 0; // small gap between segments
+  const gap = entries.length > 1 ? 1.5 : 0;
 
   entries.forEach(([catId, amt], i) => {
-    const cat = DataLayer.getCatById(catId);
-    const pct = amt / total;
+    const pct     = amt / total;
     const dashLen = Math.max(0, pct * circumference - gap);
-    const color = DONUT_COLORS[i % DONUT_COLORS.length];
-
+    const color   = DONUT_COLORS[i % DONUT_COLORS.length];
     segments += `<circle
       cx="${cx}" cy="${cy}" r="${r}"
       fill="none"
       stroke="${color}"
-      stroke-width="18"
+      stroke-width="22"
       stroke-dasharray="${dashLen} ${circumference}"
       stroke-dashoffset="${-offset}"
       stroke-linecap="butt"
     />`;
-
     offset += pct * circumference;
-
-    legendItems += `
-      <div class="donut-legend-item">
-        <div class="donut-legend-dot" style="background:${color}"></div>
-        <div class="donut-legend-name">${esc(cat.icon || '')} ${esc(cat.label)}</div>
-        <div class="donut-legend-pct">${Math.round(pct * 100)}%</div>
-        <div class="donut-legend-amt">${fmtAmt(amt)}</div>
-      </div>`;
   });
+
+  const legendItems = entries.map(([catId, amt], i) => {
+    const cat   = DataLayer.getCatById(catId);
+    const pct   = amt / total;
+    const color = DONUT_COLORS[i % DONUT_COLORS.length];
+    return `
+      <div class="donut-legend-item">
+        <div class="donut-legend-dot" style="background:${color};width:10px;height:10px;border-radius:50%;flex-shrink:0"></div>
+        <div class="donut-legend-name">${esc(cat.icon || '')} ${esc(cat.label)}</div>
+        <div style="flex:1;margin:0 8px;height:3px;border-radius:2px;background:var(--surface3);overflow:hidden">
+          <div style="height:100%;width:${Math.round(pct*100)}%;background:${color};border-radius:2px"></div>
+        </div>
+        <div class="donut-legend-pct" style="min-width:28px;text-align:right">${Math.round(pct * 100)}%</div>
+        <div class="donut-legend-amt" style="min-width:52px;text-align:right">${fmtAmt(amt)}</div>
+      </div>`;
+  }).join('');
 
   return `
     <div class="donut-section">
       <div class="donut-title">Spending breakdown</div>
-      <div class="donut-wrap">
-        <div class="donut-svg-container">
-          <svg viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="18"/>
-            ${segments}
-          </svg>
-          <div class="donut-center">
-            <div class="donut-center-amt">${fmtAmt(total)}</div>
-            <div class="donut-center-label">total</div>
-          </div>
+      <div class="donut-svg-container" style="width:180px;height:180px;margin:0 auto 20px">
+        <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" style="width:180px;height:180px;transform:rotate(-90deg)">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="22"/>
+          ${segments}
+        </svg>
+        <div class="donut-center">
+          <div class="donut-center-amt" style="font-size:18px">${fmtAmt(total)}</div>
+          <div class="donut-center-label">total</div>
         </div>
-        <div class="donut-legend">${legendItems}</div>
       </div>
+      <div class="donut-legend" style="display:flex;flex-direction:column;gap:11px">${legendItems}</div>
     </div>`;
 }
 
