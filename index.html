@@ -2003,19 +2003,12 @@ function openTimelineModal() {
     const hasData = amt > 0;
     const pct     = hasData ? Math.max(6, Math.round((amt / maxVal) * 100)) : 0;
 
-    let barStyle, barClass;
-    if (isToday && hasData) {
-      barClass = 'tl-bar today';
-      barStyle = `height:${pct}%`;
-    } else if (hasData) {
-      barClass = 'tl-bar has-data';
-      barStyle = `height:${pct}%`;
+    if (!hasData) {
+      bars += `<div class="tl-bar-col"></div>`;
     } else {
-      barClass = 'tl-bar empty';
-      barStyle = 'height:0';
+      const barClass = isToday ? 'tl-bar today' : 'tl-bar has-data';
+      bars += `<div class="tl-bar-col"><div class="${barClass}" style="height:${pct}%"></div></div>`;
     }
-
-    bars += `<div class="tl-bar-col"><div class="${barClass}" style="${barStyle}"></div></div>`;
 
     // X-axis: show label only on day 1, 10, 20, and last day of month
     const showLabel = d === 1 || d === 10 || d === 20 || d === daysInMonth;
