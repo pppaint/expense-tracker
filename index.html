@@ -784,8 +784,9 @@ input[type="date"].text-input { color-scheme: dark; }
 .tl-chart {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 72px;
+  gap: 2px;
+  height: 52px;
+  margin-top: 16px;
   position: relative;
 }
 .tl-chart-lines {
@@ -814,7 +815,7 @@ input[type="date"].text-input { color-scheme: dark; }
 }
 .tl-bar.has-data  { background: var(--accent); opacity: 0.6; }
 .tl-bar.today     { background: var(--accent2); opacity: 1; }
-.tl-bar.empty     { background: var(--surface3); opacity: 0.4; min-height: 3px; }
+.tl-bar.empty     { background: none; height: 0 !important; }
 .tl-x-labels {
   display: flex;
   gap: 3px;
@@ -1965,18 +1966,21 @@ function buildDonutHTML(bycat, total, statsRow) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function openTimelineModal() {
-  const today     = new Date();
-  const todayDay  = today.getDate();
-  const month     = todayStr().slice(0, 7);
-  const year      = parseInt(month.slice(0, 4));
-  const mo        = parseInt(month.slice(5, 7));
+  const today    = new Date();
+  const todayDay = today.getDate();
+  const month    = todayStr().slice(0, 7);
+  const year     = parseInt(month.slice(0, 4));
+  const mo       = parseInt(month.slice(5, 7));
+
+  // Days in this month
+  const daysInMonth = new Date(year, mo, 0).getDate();
 
   const all   = DataLayer.getAllExpenses().filter(e => e.date && e.date.startsWith(month));
   const total = all.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const cnt   = all.length;
   const avgDay = todayDay > 0 ? total / todayDay : 0;
 
-  // Per-day totals — only days 1 through today
+  // Per-day totals
   const byDay = {};
   all.forEach(e => {
     const d = parseInt(e.date.slice(8, 10));
@@ -1987,30 +1991,35 @@ function openTimelineModal() {
   const peakEntry = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
   const peakAmt   = peakEntry ? peakEntry[1] : 0;
   const peakDay   = peakEntry ? parseInt(peakEntry[0]) : null;
-  const peakLabel = peakDay
-    ? fmtDateShort(`${month}-${pad(peakDay)}`)
-    : '—';
+  const peakLabel = peakDay ? fmtDateShort(`${month}-${pad(peakDay)}`) : '—';
 
   const maxVal = Math.max(...Object.values(byDay), 1);
 
-  // Build bars — only 1 → todayDay
+  // Build bars — full month, only render bar where data exists
   let bars = '', xLabels = '';
-  for (let d = 1; d <= todayDay; d++) {
-    const amt      = byDay[d] || 0;
-    const isToday  = d === todayDay;
-    const hasData  = amt > 0;
-    // height: minimum 3px floor so empty days still show a tick
-    const pct      = hasData ? Math.max(5, Math.round((amt / maxVal) * 100)) : 0;
-    const barClass = isToday ? 'tl-bar today' : hasData ? 'tl-bar has-data' : 'tl-bar empty';
-    const barStyle = hasData || isToday
-      ? `height:${pct}%`
-      : `height:3px`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const amt     = byDay[d] || 0;
+    const isToday = d === todayDay;
+    const hasData = amt > 0;
+    const pct     = hasData ? Math.max(6, Math.round((amt / maxVal) * 100)) : 0;
 
-    bars     += `<div class="tl-bar-col"><div class="${barClass}" style="${barStyle}"></div></div>`;
+    let barStyle, barClass;
+    if (isToday && hasData) {
+      barClass = 'tl-bar today';
+      barStyle = `height:${pct}%`;
+    } else if (hasData) {
+      barClass = 'tl-bar has-data';
+      barStyle = `height:${pct}%`;
+    } else {
+      barClass = 'tl-bar empty';
+      barStyle = 'height:0';
+    }
 
-    // x-axis: show label on day 1, multiples of 5, and today
-    const showLabel = d === 1 || d % 5 === 0 || d === todayDay;
-    xLabels  += `<div class="tl-x-label${isToday ? ' today' : ''}">${showLabel ? d : ''}</div>`;
+    bars += `<div class="tl-bar-col"><div class="${barClass}" style="${barStyle}"></div></div>`;
+
+    // X-axis: show label only on day 1, 10, 20, and last day of month
+    const showLabel = d === 1 || d === 10 || d === 20 || d === daysInMonth;
+    xLabels += `<div class="tl-x-label${isToday ? ' today' : ''}">${showLabel ? d : ''}</div>`;
   }
 
   // Recent activity
