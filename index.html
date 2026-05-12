@@ -2221,6 +2221,62 @@ function renderSummary() {
   el.innerHTML = buildDonutHTML(bycat, total, statsRow);
 }
 
+function buildExpenseRow(e) {
+  const cat      = DataLayer.getCatById(e.category);
+  const tripName = e.tripId ? getTripName(e.tripId) : '';
+  const tripChip = tripName ? `<span class="trip-chip">✈ ${esc(tripName)}</span>` : '';
+  return `
+    <div class="history-item">
+      <div class="h-icon">${esc(cat.icon || '📦')}</div>
+      <div class="h-info">
+        <div class="h-cat">${esc(e.note || e.subcategory || cat.label)}${tripChip}</div>
+        <div class="h-meta">${esc(cat.label)} › ${esc(e.subcategory)} · ${fmtTime(e.ts)}</div>
+      </div>
+      <div class="h-right">
+        <div class="h-amt">${fmtAmt(e.amount)}</div>
+        <div class="h-actions">
+          <button class="icon-btn" onclick="openEditModal('${esc(e.id)}','${esc(e.date)}')" title="Edit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="icon-btn danger" onclick="confirmDeleteExpense('${esc(e.id)}','${esc(e.date)}')" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildDayGroup(date, items) {
+  const dayTotal = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  return `
+    <div class="group-label">
+      <span>${esc(fmtDateShort(date))}</span>
+      <span class="group-total">${fmtAmt(dayTotal)}</span>
+    </div>
+    <div class="history-card">
+      ${items.map(buildExpenseRow).join('')}
+    </div>`;
+}
+
+function buildTripCard(t) {
+  return `
+    <div class="trip-card" onclick="viewTrip(${t.id})">
+      <div class="trip-card-top">
+        <span class="trip-card-name">✈ ${esc(t.name)}</span>
+        <div class="trip-card-actions">
+          <span class="trip-card-amt">${fmtAmt(t.total)}</span>
+          <button class="icon-btn danger" onclick="event.stopPropagation();confirmDeleteTrip(${t.id})" title="Delete trip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="trip-card-meta">
+        ${esc(fmtDateShort(new Date(t.start).toISOString().slice(0,10)))}
+        · ${t.count} expense${t.count !== 1 ? 's' : ''}
+      </div>
+    </div>`;
+}
+
 function renderHistory() {
   const el      = document.getElementById('history-content');
   const tripsEl = document.getElementById('trips-section');
@@ -2235,64 +2291,14 @@ function renderHistory() {
   const byDate = {};
   all.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
 
-  let h = '';
-  Object.entries(byDate)
+  el.innerHTML = Object.entries(byDate)
     .sort((a, b) => b[0].localeCompare(a[0]))
-    .forEach(([date, items]) => {
-      const dayTotal = items.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-      h += `<div class="group-label"><span>${esc(fmtDateShort(date))}</span><span class="group-total">${fmtAmt(dayTotal)}</span></div>`;
-      h += `<div class="history-card">`;
-      items.forEach(e => {
-        const cat      = DataLayer.getCatById(e.category);
-        const tripName = e.tripId ? getTripName(e.tripId) : '';
-        const tripChip = tripName ? `<span class="trip-chip">✈ ${esc(tripName)}</span>` : '';
-        h += `
-          <div class="history-item">
-            <div class="h-icon">${esc(cat.icon || '📦')}</div>
-            <div class="h-info">
-              <div class="h-cat">${esc(e.note || e.subcategory || cat.label)}${tripChip}</div>
-              <div class="h-meta">${esc(cat.label)} › ${esc(e.subcategory)} · ${fmtTime(e.ts)}</div>
-            </div>
-            <div class="h-right">
-              <div class="h-amt">${fmtAmt(e.amount)}</div>
-              <div class="h-actions">
-                <button class="icon-btn" onclick="openEditModal('${esc(e.id)}','${esc(e.date)}')" title="Edit">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button class="icon-btn danger" onclick="confirmDeleteExpense('${esc(e.id)}','${esc(e.date)}')" title="Delete">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>`;
-      });
-      h += `</div>`;
-    });
-  el.innerHTML = h;
+    .map(([date, items]) => buildDayGroup(date, items))
+    .join('');
 
   const trips = DataLayer.getTrips().slice().reverse();
-  if (trips.length === 0) { tripsEl.innerHTML = ''; return; }
-
-  let th = `<div class="section-heading">Past trips</div>`;
-  trips.forEach(t => {
-    th += `
-      <div class="trip-card" onclick="viewTrip(${t.id})">
-        <div class="trip-card-top">
-          <span class="trip-card-name">✈ ${esc(t.name)}</span>
-          <div class="trip-card-actions">
-            <span class="trip-card-amt">${fmtAmt(t.total)}</span>
-            <button class="icon-btn danger" onclick="event.stopPropagation();confirmDeleteTrip(${t.id})" title="Delete trip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="trip-card-meta">
-          ${esc(fmtDateShort(new Date(t.start).toISOString().slice(0,10)))}
-          · ${t.count} expense${t.count !== 1 ? 's' : ''}
-        </div>
-      </div>`;
-  });
-  tripsEl.innerHTML = th;
+  tripsEl.innerHTML = trips.length === 0 ? '' :
+    `<div class="section-heading">Past trips</div>` + trips.map(buildTripCard).join('');
 }
 
 function renderSettings() {
