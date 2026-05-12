@@ -785,7 +785,7 @@ input[type="date"].text-input { color-scheme: dark; }
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  height: 52px;
+  height: 90px;
   margin-top: 16px;
   position: relative;
 }
@@ -2001,13 +2001,14 @@ function openTimelineModal() {
     const amt     = byDay[d] || 0;
     const isToday = d === todayDay;
     const hasData = amt > 0;
-    const pct     = hasData ? Math.max(6, Math.round((amt / maxVal) * 100)) : 0;
+    const CHART_H = 90;
+    const px      = hasData ? Math.max(4, Math.round((amt / maxVal) * CHART_H)) : 0;
 
     if (!hasData) {
       bars += `<div class="tl-bar-col"></div>`;
     } else {
       const barClass = isToday ? 'tl-bar today' : 'tl-bar has-data';
-      bars += `<div class="tl-bar-col"><div class="${barClass}" style="height:${pct}%"></div></div>`;
+      bars += `<div class="tl-bar-col"><div class="${barClass}" style="height:${px}px"></div></div>`;
     }
 
     // X-axis: show label only on day 1, 10, 20, and last day of month
