@@ -1113,6 +1113,84 @@ input[type="date"].text-input { color-scheme: dark; }
 .health-text { flex: 1; font-size: 12px; color: var(--muted); }
 .health-action { font-size: 12px; color: var(--accent2); cursor: pointer; font-weight: 500; }
 
+/* ── SUMMARY MONTH NAV ── */
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.month-nav-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.month-nav-btn:disabled { opacity: .25; cursor: default; }
+.month-nav-btn:not(:disabled):active { background: var(--surface3); }
+.month-nav-label { font-size: 13px; color: var(--muted); }
+
+/* ── SPARKLINE ── */
+.sparkline-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.sparkline-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--hint);
+  margin-bottom: 10px;
+}
+.sparkline-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 44px;
+}
+.sparkline-col {
+  flex: 1;
+  cursor: pointer;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.sparkline-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--surface3);
+  min-height: 3px;
+  transition: background .15s, opacity .15s;
+}
+.sparkline-bar.has-data { background: var(--accent); opacity: 0.45; }
+.sparkline-bar.selected { background: var(--accent2); opacity: 1 !important; }
+.sparkline-months {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+}
+.sparkline-month-lbl {
+  flex: 1;
+  text-align: center;
+  font-size: 9px;
+  color: var(--hint);
+  cursor: pointer;
+  font-weight: 500;
+}
+.sparkline-month-lbl.selected { color: var(--accent2); font-weight: 700; }
+
 /* ── MISC ── */
 .divider { height: 1px; background: var(--border); margin: 12px 0; }
 .text-green  { color: var(--green); }
@@ -1872,6 +1950,37 @@ function updateAmountDisplay() {
   }
 }
 
+function prevMonth(m) {
+  const [y, mo] = m.split('-').map(Number);
+  const d = new Date(y, mo - 2, 1);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+}
+
+function nextMonth(m) {
+  const [y, mo] = m.split('-').map(Number);
+  const d = new Date(y, mo, 1);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+}
+
+function fmtMonthYearFromStr(m) {
+  if (!m || !/^\d{4}-\d{2}$/.test(m)) return '';
+  try {
+    return new Date(m + '-01T00:00:00').toLocaleDateString(
+      DataLayer.getPrefs().currency_locale, { month: 'long', year: 'numeric' }
+    );
+  } catch {
+    return new Date(m + '-01T00:00:00').toLocaleDateString(
+      [], { month: 'long', year: 'numeric' }
+    );
+  }
+}
+
+function navMonth(m) {
+  if (m > todayStr().slice(0, 7)) return;
+  State.selMonth = m;
+  renderSummary();
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    DONUT CHART HELPER
    Renders a donut SVG for category breakdown.
@@ -2169,40 +2278,49 @@ function renderSubPills() {
 }
 
 function renderSummary() {
-  const el    = document.getElementById('summary-content');
-  const month = todayStr().slice(0, 7);
+  const el           = document.getElementById('summary-content');
+  const currentMonth = todayStr().slice(0, 7);
+  const month        = State.selMonth || currentMonth;
+  const isNow        = month === currentMonth;
+
+  const prev    = prevMonth(month);
+  const next    = nextMonth(month);
+  const canNext = next <= currentMonth;
+
+  document.getElementById('summary-period-label').innerHTML = `
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="navMonth('${prev}')">←</button>
+      <span class="month-nav-label">${esc(fmtMonthYearFromStr(month))}</span>
+      <button class="month-nav-btn" onclick="navMonth('${next}')" ${!canNext ? 'disabled' : ''}>→</button>
+    </div>`;
+
   const all   = DataLayer.getAllExpenses().filter(e => e.date && e.date.startsWith(month));
   const total = all.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const cnt   = all.length;
-  const daysElapsed = new Date().getDate();
-  const avgDay = total > 0 ? total / daysElapsed : 0;
 
-  document.getElementById('summary-period-label').textContent = fmtMonthYear();
+  const daysInMonth = new Date(parseInt(month.slice(0,4)), parseInt(month.slice(5,7)), 0).getDate();
+  const daysElapsed = isNow ? new Date().getDate() : daysInMonth;
+  const avgDay      = daysElapsed > 0 ? total / daysElapsed : 0;
 
   if (cnt === 0) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div>No expenses this month yet.</div>`;
+    el.innerHTML = buildSparklineHTML(month) +
+      `<div class="empty"><div class="empty-icon">📊</div>No expenses ${isNow ? 'this month' : 'that month'} yet.</div>`;
     return;
   }
 
-  // Per-category totals
   const bycat = {};
-  all.forEach(e => {
-    bycat[e.category] = (bycat[e.category] || 0) + (Number(e.amount) || 0);
-  });
+  all.forEach(e => { bycat[e.category] = (bycat[e.category] || 0) + (Number(e.amount) || 0); });
 
-  // Peak day calculation
   const byDay = {};
-  all.forEach(e => {
-    byDay[e.date] = (byDay[e.date] || 0) + (Number(e.amount) || 0);
-  });
+  all.forEach(e => { byDay[e.date] = (byDay[e.date] || 0) + (Number(e.amount) || 0); });
   const peakEntry = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
-  const peakAmt  = peakEntry ? peakEntry[1] : 0;
-  const peakDate = peakEntry ? fmtDateShort(peakEntry[0]) : '—';
+  const peakAmt   = peakEntry ? peakEntry[1] : 0;
+  const peakDate  = peakEntry ? fmtDateShort(peakEntry[0]) : '—';
 
   const statsRow = `
     <div class="summary-hero-stats">
       <div class="summary-hero-stat">
-        <div class="s-label">This month</div>
+        <div class="s-label">${isNow ? 'This month' : 'Total'}</div>
         <div class="s-val">${fmtAmt(total)}</div>
         <div class="s-sub">${cnt} expense${cnt !== 1 ? 's' : ''}</div>
       </div>
@@ -2218,7 +2336,45 @@ function renderSummary() {
       </div>
     </div>`;
 
-  el.innerHTML = buildDonutHTML(bycat, total, statsRow);
+  el.innerHTML = buildSparklineHTML(month) + buildDonutHTML(bycat, total, statsRow);
+}
+
+function buildSparklineHTML(selectedMonth) {
+  const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const currentMonth = todayStr().slice(0, 7);
+  const months = [];
+  let m = currentMonth;
+  for (let i = 0; i < 6; i++) { months.unshift(m); m = prevMonth(m); }
+
+  const all    = DataLayer.getAllExpenses();
+  const totals = months.map(mo =>
+    all.filter(e => e.date && e.date.startsWith(mo))
+       .reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  );
+  const maxVal = Math.max(...totals, 1);
+  const BAR_H  = 44;
+
+  const bars = months.map((mo, i) => {
+    const amt      = totals[i];
+    const isActive = mo === selectedMonth;
+    const px       = amt > 0 ? Math.max(4, Math.round((amt / maxVal) * BAR_H)) : 3;
+    return `<div class="sparkline-col" onclick="navMonth('${mo}')">
+      <div class="sparkline-bar${amt > 0 ? ' has-data' : ''}${isActive ? ' selected' : ''}" style="height:${px}px"></div>
+    </div>`;
+  }).join('');
+
+  const labels = months.map((mo, i) => {
+    const isActive = mo === selectedMonth;
+    const lbl      = MO[parseInt(mo.slice(5,7)) - 1];
+    return `<div class="sparkline-month-lbl${isActive ? ' selected' : ''}" onclick="navMonth('${mo}')">${esc(lbl)}</div>`;
+  }).join('');
+
+  return `
+    <div class="sparkline-card">
+      <div class="sparkline-title">6-month overview</div>
+      <div class="sparkline-bars">${bars}</div>
+      <div class="sparkline-months">${labels}</div>
+    </div>`;
 }
 
 function buildExpenseRow(e) {
@@ -2880,6 +3036,7 @@ function init() {
     State.tripMode = false;
   }
 
+  State.selMonth = todayStr().slice(0, 7);
   const today = todayStr();
   const dateInp = document.getElementById('date-input');
   if (dateInp) dateInp.value = today;
