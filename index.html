@@ -1788,7 +1788,8 @@ const State = {
   tripMode:    false,
   tripName:    '',
   tripStart:   null,
-  tripId:      null,
+  tripId:       null,
+  selTrip:      null,
   addingSubFor: null,
 
   commit() { renderPage(this.page); }
@@ -1978,6 +1979,7 @@ function fmtMonthYearFromStr(m) {
 function navMonth(m) {
   if (m > todayStr().slice(0, 7)) return;
   State.selMonth = m;
+  State.selTrip  = null;
   renderSummary();
 }
 
@@ -2000,7 +2002,7 @@ const DONUT_COLORS = [
 ];
 
 function buildDonutHTML(bycat, total, statsRow) {
-  const r = 80, cx = 90, cy = 90;
+  const r = 80, cx = 100, cy = 100;
   const circumference = 2 * Math.PI * r;
   const entries = Object.entries(bycat).sort((a, b) => b[1] - a[1]);
 
@@ -2045,8 +2047,8 @@ function buildDonutHTML(bycat, total, statsRow) {
       ${statsRow}
       <div class="summary-hero-body">
         <div class="donut-title">Spending breakdown</div>
-        <div class="donut-svg-container" style="width:180px;height:180px;margin:0 auto 20px">
-          <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" style="width:180px;height:180px;transform:rotate(-90deg)">
+       <div class="donut-svg-container" style="width:200px;height:200px;margin:0 auto 20px">
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:200px;height:200px;transform:rotate(-90deg)">
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="22"/>
             ${segments}
           </svg>
@@ -2282,16 +2284,81 @@ function renderSummary() {
   const currentMonth = todayStr().slice(0, 7);
   const month        = State.selMonth || currentMonth;
   const isNow        = month === currentMonth;
+  const prev         = prevMonth(month);
+  const next         = nextMonth(month);
+  const canNext      = next <= currentMonth;
+  const trips        = DataLayer.getTrips();
+  const hasTrips     = trips.length > 0;
 
-  const prev    = prevMonth(month);
-  const next    = nextMonth(month);
-  const canNext = next <= currentMonth;
+  const selectedTrip = State.selTrip ? trips.find(t => t.id === State.selTrip) : null;
+  const tripBtnLabel = selectedTrip ? `✈ ${esc(selectedTrip.name)}` : 'Trips ▾';
+  const tripBtnStyle = selectedTrip
+    ? 'border:1px solid var(--accent-border);background:var(--accent-bg);color:var(--accent2);'
+    : 'border:1px solid var(--border);background:var(--surface2);color:var(--muted);';
+  const tripBtnHTML = hasTrips
+    ? `<button onclick="openTripFilterModal()" style="padding:5px 11px;border-radius:30px;${tripBtnStyle}font-size:11px;font-weight:500;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0">${tripBtnLabel}</button>`
+    : '';
 
+  if (State.selTrip && selectedTrip) {
+    // ── TRIP MODE ──
+    document.getElementById('summary-period-label').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
+        <span style="font-size:12px;color:var(--muted)">Trip view</span>
+        ${tripBtnHTML}
+      </div>`;
+
+    const all   = DataLayer.getAllExpenses().filter(e => e.tripId === State.selTrip);
+    const total = all.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const cnt   = all.length;
+
+    if (cnt === 0) {
+      el.innerHTML = `<div class="empty"><div class="empty-icon">✈</div>No expenses found for this trip.</div>`;
+      return;
+    }
+
+    const dates    = all.map(e => e.date).sort();
+    const dayCount = new Set(dates).size;
+    const avgDay   = dayCount > 0 ? total / dayCount : 0;
+    const byDay    = {};
+    all.forEach(e => { byDay[e.date] = (byDay[e.date] || 0) + (Number(e.amount) || 0); });
+    const peakEntry = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
+    const peakAmt   = peakEntry ? peakEntry[1] : 0;
+    const peakDate  = peakEntry ? fmtDateShort(peakEntry[0]) : '—';
+    const bycat     = {};
+    all.forEach(e => { bycat[e.category] = (bycat[e.category] || 0) + (Number(e.amount) || 0); });
+
+    const statsRow = `
+      <div class="summary-hero-stats">
+        <div class="summary-hero-stat">
+          <div class="s-label">${esc(selectedTrip.name)}</div>
+          <div class="s-val">${fmtAmt(total)}</div>
+          <div class="s-sub">${cnt} expense${cnt !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="summary-hero-stat">
+          <div class="s-label">Daily avg</div>
+          <div class="s-val">${fmtAmt(Math.round(avgDay))}</div>
+          <div class="s-sub">${dayCount} day${dayCount !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="summary-hero-stat">
+          <div class="s-label">Peak day</div>
+          <div class="s-val">${fmtAmt(peakAmt)}</div>
+          <div class="s-sub">${esc(peakDate)}</div>
+        </div>
+      </div>`;
+
+    el.innerHTML = buildDonutHTML(bycat, total, statsRow);
+    return;
+  }
+
+  // ── MONTH MODE ──
   document.getElementById('summary-period-label').innerHTML = `
-    <div class="month-nav">
-      <button class="month-nav-btn" onclick="navMonth('${prev}')">←</button>
-      <span class="month-nav-label">${esc(fmtMonthYearFromStr(month))}</span>
-      <button class="month-nav-btn" onclick="navMonth('${next}')" ${!canNext ? 'disabled' : ''}>→</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
+      <div class="month-nav" style="margin-top:0">
+        <button class="month-nav-btn" onclick="navMonth('${prev}')">←</button>
+        <span class="month-nav-label">${esc(fmtMonthYearFromStr(month))}</span>
+        <button class="month-nav-btn" onclick="navMonth('${next}')" ${!canNext ? 'disabled' : ''}>→</button>
+      </div>
+      ${tripBtnHTML}
     </div>`;
 
   const all   = DataLayer.getAllExpenses().filter(e => e.date && e.date.startsWith(month));
@@ -2684,6 +2751,41 @@ function _endTrip() {
   renderTripBanner();
   renderTodayTotal();
   _cache.expenses = null;
+}
+
+function openTripFilterModal() {
+  const trips = DataLayer.getTrips().slice().reverse();
+  if (trips.length === 0) { showToast('No completed trips yet', 'info'); return; }
+
+  const allActive = !State.selTrip;
+  let h = `<h3>Filter by trip</h3><p>View summary for a specific trip, or show all expenses.</p>`;
+
+  h += `
+    <div class="settings-item" style="margin-bottom:6px;${allActive ? 'border-color:var(--accent-border);' : ''}" onclick="_selectTripFilter(null)">
+      <span style="font-size:14px">All expenses</span>
+      ${allActive ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
+    </div>`;
+
+  trips.forEach(t => {
+    const active  = State.selTrip === t.id;
+    const dateStr = fmtDateShort(new Date(t.start).toISOString().slice(0, 10));
+    h += `
+      <div class="settings-item" style="margin-bottom:6px;${active ? 'border-color:var(--accent-border);' : ''}" onclick="_selectTripFilter(${t.id})">
+        <div>
+          <div style="font-size:14px">✈ ${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)} · ${fmtAmt(t.total)} · ${t.count} expense${t.count !== 1 ? 's' : ''}</div>
+        </div>
+        ${active ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
+      </div>`;
+  });
+  h += `<button class="btn-sec" style="width:100%;margin-top:4px" onclick="Modal.hide()">Close</button>`;
+  Modal.show(h);
+}
+
+function _selectTripFilter(tripId) {
+  State.selTrip = tripId;
+  Modal.hide();
+  renderSummary();
 }
 
 function viewTrip(tripId) {
