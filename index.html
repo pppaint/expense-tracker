@@ -2754,7 +2754,9 @@ function _endTrip() {
 }
 
 function openTripFilterModal() {
-  const trips = DataLayer.getTrips().slice().reverse();
+  const allExpenses = DataLayer.getAllExpenses();
+  const tripsWithExpenses = new Set(allExpenses.map(e => e.tripId).filter(Boolean));
+  const trips = DataLayer.getTrips().filter(t => tripsWithExpenses.has(t.id)).slice().reverse();
   if (trips.length === 0) { showToast('No completed trips yet', 'info'); return; }
 
   const allActive = !State.selTrip;
@@ -2769,11 +2771,14 @@ function openTripFilterModal() {
   trips.forEach(t => {
     const active  = State.selTrip === t.id;
     const dateStr = fmtDateShort(new Date(t.start).toISOString().slice(0, 10));
+    const tripExps = allExpenses.filter(e => e.tripId === t.id);
+    const liveTotal = tripExps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const liveCount = tripExps.length;
     h += `
       <div class="settings-item" style="margin-bottom:6px;${active ? 'border-color:var(--accent-border);' : ''}" onclick="_selectTripFilter(${t.id})">
         <div>
           <div style="font-size:14px">✈ ${esc(t.name)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)} · ${fmtAmt(t.total)} · ${t.count} expense${t.count !== 1 ? 's' : ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)} · ${fmtAmt(liveTotal)} · ${liveCount} expense${liveCount !== 1 ? 's' : ''}</div>
         </div>
         ${active ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
       </div>`;
