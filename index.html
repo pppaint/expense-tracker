@@ -1342,12 +1342,12 @@ input[type="date"].text-input { color-scheme: dark; }
 
 <!-- ═══════ PAGE: HISTORY ═══════ -->
 <div class="page" id="page-history">
-  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end">
+ <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end">
     <div>
       <h2>History</h2>
-      <div class="sub">All entries</div>
+      <div class="sub" id="history-sub">All entries</div>
     </div>
-    <button onclick="openEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:30px;padding:7px 14px;color:var(--muted);font-size:12px;font-family:var(--sans);cursor:pointer;margin-bottom:2px">Categories</button>
+    <div id="history-filter-btn"></div>
   </div>
   <div id="history-content"></div>
   <div id="trips-section"></div>
@@ -1400,6 +1400,18 @@ input[type="date"].text-input { color-scheme: dark; }
 
   <div class="settings-section">
     <div class="settings-section-title">Appearance & Preferences</div>
+    <div class="settings-item" onclick="openEditor()">
+      <div class="settings-item-left">
+        <div class="settings-item-icon" style="background:var(--surface2)">🏷</div>
+        <div class="settings-item-text">
+          <div class="label">Categories</div>
+          <div class="sublabel">Manage categories and sub-categories</div>
+        </div>
+      </div>
+      <div class="settings-item-right">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
     <div class="settings-item" onclick="openCurrencyModal()">
       <div class="settings-item-left">
         <div class="settings-item-icon" style="background:var(--surface2)">💱</div>
@@ -1831,7 +1843,8 @@ const State = {
   tripId:       null,
   selTrip:        null,
   addingSubFor:   null,
-  viewingTripId:  null,
+  viewingTripId:     null,
+  historyTripFilter: null,
 
   commit() { renderPage(this.page); }
 };
@@ -2411,7 +2424,7 @@ function renderSummary() {
   const avgDay      = daysElapsed > 0 ? total / daysElapsed : 0;
 
   if (cnt === 0) {
-    el.innerHTML = buildSparklineHTML(month) + buildTripStripHTML() +
+    el.innerHTML = buildSparklineHTML(month) +
       `<div class="empty"><div class="empty-icon">📊</div>No expenses ${isNow ? 'this month' : 'that month'} yet.</div>`;
     return;
   }
@@ -2444,7 +2457,7 @@ function renderSummary() {
       </div>
     </div>`;
 
-  el.innerHTML = buildSparklineHTML(month) + buildTripStripHTML() + buildDonutHTML(bycat, total, statsRow);
+  el.innerHTML = buildSparklineHTML(month) + buildDonutHTML(bycat, total, statsRow);
 }
 
 function buildTripStripHTML() {
@@ -2561,25 +2574,76 @@ function buildTripCard(t) {
 }
 
 function renderHistory() {
-  const el      = document.getElementById('history-content');
-  const tripsEl = document.getElementById('trips-section');
-  const all     = DataLayer.getAllExpenses();
+  const el       = document.getElementById('history-content');
+  const tripsEl  = document.getElementById('trips-section');
+  const filterEl = document.getElementById('history-filter-btn');
+  const subEl    = document.getElementById('history-sub');
+  const trips    = DataLayer.getTrips();
+  const activeFilter = State.historyTripFilter
+    ? trips.find(t => t.id === State.historyTripFilter) : null;
+
+  if (filterEl) {
+    if (trips.length > 0) {
+      const btnStyle = activeFilter
+        ? 'border:1px solid var(--accent-border);background:var(--accent-bg);color:var(--accent2);'
+        : 'border:1px solid var(--border);background:var(--surface2);color:var(--muted);';
+      filterEl.innerHTML = `<button onclick="openHistoryTripFilter()" style="padding:7px 14px;border-radius:30px;${btnStyle}font-size:12px;font-family:var(--sans);cursor:pointer;white-space:nowrap;margin-bottom:2px">${activeFilter ? `✈ ${esc(activeFilter.name)}` : 'Trips ▾'}</button>`;
+    } else {
+      filterEl.innerHTML = '';
+    }
+  }
+
+  if (subEl) subEl.textContent = activeFilter ? `Filtered · ${esc(activeFilter.name)}` : 'All entries';
+  tripsEl.innerHTML = '';
+
+  let all = DataLayer.getAllExpenses();
+  if (State.historyTripFilter) all = all.filter(e => e.tripId === State.historyTripFilter);
 
   if (all.length === 0) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>No expenses yet.<br>Add your first one!</div>`;
-    tripsEl.innerHTML = '';
+    el.innerHTML = activeFilter
+      ? `<div class="empty"><div class="empty-icon">✈</div>No expenses found for this trip.</div>`
+      : `<div class="empty"><div class="empty-icon">📋</div>No expenses yet.<br>Add your first one!</div>`;
     return;
   }
 
   const byDate = {};
   all.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
-
   el.innerHTML = Object.entries(byDate)
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([date, items]) => buildDayGroup(date, items))
     .join('');
+}
 
-  tripsEl.innerHTML = '';
+function openHistoryTripFilter() {
+  const trips = DataLayer.getTrips().slice().reverse();
+  if (trips.length === 0) { showToast('No trips yet', 'info'); return; }
+  const allActive = !State.historyTripFilter;
+  let h = `<h3>Filter by trip</h3><p>Show only expenses from a specific trip.</p>`;
+  h += `
+    <div class="settings-item" style="margin-bottom:6px;${allActive ? 'border-color:var(--accent-border);' : ''}" onclick="_setHistoryTripFilter(null)">
+      <span style="font-size:14px">All expenses</span>
+      ${allActive ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
+    </div>`;
+  trips.forEach(t => {
+    const active  = State.historyTripFilter === t.id;
+    const dateStr = fmtDateShort(new Date(t.start).toISOString().slice(0, 10));
+    h += `
+      <div class="settings-item" style="margin-bottom:6px;${active ? 'border-color:var(--accent-border);' : ''}" onclick="_setHistoryTripFilter(${t.id})">
+        <div>
+          <div style="font-size:14px">✈ ${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)} · ${fmtAmt(t.total)}</div>
+        </div>
+        ${active ? '<span style="color:var(--accent2);font-size:13px">✓</span>' : ''}
+      </div>`;
+  });
+  h += `<button class="btn-sec" style="width:100%;margin-top:4px" onclick="Modal.hide()">Close</button>`;
+  Modal.show(h);
+}
+
+function _setHistoryTripFilter(tripId) {
+  State.historyTripFilter = tripId;
+  Modal.hide();
+  renderHistory();
 }
 
 function renderSettings() {
@@ -2970,7 +3034,6 @@ function _renderTripDetail() {
     });
   }
 
-  h += `<button class="save-btn" style="margin-top:16px" onclick="openAddToTripModal(${tripId})">+ Add expense to this trip</button>`;
   document.getElementById('trip-detail-content').innerHTML = h;
 }
 
