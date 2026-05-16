@@ -2599,34 +2599,80 @@ function saveExpense() {
   _cache.expenses = null;
 }
 
+let _editState = { cat: null, sub: null };
+
 function openEditModal(id, date) {
   const arr = DataLayer.getDay(date);
   const exp = arr.find(e => e.id === id);
   if (!exp) { showToast('Expense not found', 'error'); return; }
 
+  _editState = { cat: exp.category, sub: exp.subcategory };
+
   Modal.show(`
     <h3>Edit expense</h3>
-    <p>Update the amount or note for this entry.</p>
-    <input id="edit-amt" type="number" inputmode="decimal" value="${exp.amount}" placeholder="Amount"/>
-    <input id="edit-note" type="text" value="${esc(exp.note)}" placeholder="Note" maxlength="80"/>
-    <div class="modal-btns">
+    <input id="edit-amt" type="number" inputmode="decimal" value="${exp.amount}" placeholder="Amount" style="margin-bottom:14px"/>
+    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Category</div>
+    <div id="edit-cat-pills" class="pills-wrap"></div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;margin-top:10px">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Sub-category</div>
+      <div id="edit-sub-pills" class="pills-wrap"></div>
+    </div>
+    <input id="edit-note" type="text" value="${esc(exp.note)}" placeholder="Note (optional)" maxlength="80"/>
+    <div class="modal-btns" style="margin-top:14px">
       <button class="btn-sec" onclick="Modal.hide()">Cancel</button>
       <button class="btn-pri" onclick="_confirmEdit('${esc(id)}','${esc(date)}')">Save</button>
     </div>
   `);
 
-  setTimeout(() => {
-    document.querySelectorAll('#modal-box input').forEach(inp => {
-      inp.onkeydown = e => { if (e.key === 'Enter') _confirmEdit(id, date); };
-    });
-  }, 60);
+  _renderEditCatPills();
+  _renderEditSubPills();
+}
+
+function _renderEditCatPills() {
+  const el = document.getElementById('edit-cat-pills');
+  if (!el) return;
+  el.innerHTML = DataLayer.getCats().map(c => `
+    <button class="pill${c.id === _editState.cat ? ' active' : ''}"
+      onmousedown="event.preventDefault()"
+      onclick="_editSelectCat('${esc(c.id)}')">
+      ${esc(c.label)}
+    </button>`).join('');
+}
+
+function _renderEditSubPills() {
+  const el = document.getElementById('edit-sub-pills');
+  if (!el) return;
+  const cat = DataLayer.getCatById(_editState.cat);
+  el.innerHTML = cat.subs.map(s => `
+    <button class="sub-pill${s === _editState.sub ? ' active' : ''}"
+      onmousedown="event.preventDefault()"
+      onclick="_editSelectSub('${esc(s)}')">
+      ${esc(s)}
+    </button>`).join('');
+}
+
+function _editSelectCat(id) {
+  _editState.cat = id;
+  _editState.sub = DataLayer.getCatById(id).subs[0];
+  _renderEditCatPills();
+  _renderEditSubPills();
+}
+
+function _editSelectSub(s) {
+  _editState.sub = s;
+  _renderEditSubPills();
 }
 
 function _confirmEdit(id, date) {
   const amt  = parseFloat(document.getElementById('edit-amt').value);
   const note = document.getElementById('edit-note').value.trim();
   if (!amt || amt <= 0) { showToast('Enter a valid amount', 'error', 2000); return; }
-  const ok = DataLayer.updateExpense(id, date, { amount: amt, note });
+  const ok = DataLayer.updateExpense(id, date, {
+    amount:      amt,
+    note,
+    category:    _editState.cat,
+    subcategory: _editState.sub,
+  });
   Modal.hide();
   if (!ok) { showToast('Failed to update', 'error'); return; }
   showToast('Expense updated', 'success');
