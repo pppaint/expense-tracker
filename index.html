@@ -2616,8 +2616,10 @@ function renderHistory() {
 }
 
 function openHistoryTripFilter() {
-  const trips = DataLayer.getTrips().slice().reverse();
-  if (trips.length === 0) { showToast('No trips yet', 'info'); return; }
+  const allExpenses = DataLayer.getAllExpenses();
+  const tripsWithExpenses = new Set(allExpenses.map(e => e.tripId).filter(Boolean));
+  const trips = DataLayer.getTrips().filter(t => tripsWithExpenses.has(t.id)).slice().reverse();
+  if (trips.length === 0) { showToast('No trips with expenses yet', 'info'); return; }
   const allActive = !State.historyTripFilter;
   let h = `<h3>Filter by trip</h3><p>Show only expenses from a specific trip.</p>`;
   h += `
@@ -2947,8 +2949,10 @@ function _endTrip() {
 }
 
 function openRetroTripSelectModal() {
-  const trips = DataLayer.getTrips().slice().reverse();
-  if (trips.length === 0) { showToast('No past trips found', 'info'); return; }
+  const allExpenses = DataLayer.getAllExpenses();
+  const tripsWithExpenses = new Set(allExpenses.map(e => e.tripId).filter(Boolean));
+  const trips = DataLayer.getTrips().filter(t => tripsWithExpenses.has(t.id)).slice().reverse();
+  if (trips.length === 0) { showToast('No past trips with expenses found', 'info'); return; }
   let h = `<h3>Add to a past trip</h3><p>Select which trip these expenses belong to.</p>`;
   trips.forEach(t => {
     const dateStr = fmtDateShort(new Date(t.start).toISOString().slice(0, 10));
