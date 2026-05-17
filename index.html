@@ -1845,6 +1845,7 @@ const State = {
   addingSubFor:   null,
   viewingTripId:     null,
   historyTripFilter: null,
+  retroMode:         false,
 
   commit() { renderPage(this.page); }
 };
@@ -2290,9 +2291,9 @@ function renderTripBanner() {
     statusEl.innerHTML = `
       <div class="trip-status-bar" onclick="openTripEndModal()">
         <div class="trip-status-dot"></div>
-        <div class="trip-status-name">✈ ${esc(State.tripName)}</div>
+        <div class="trip-status-name">${State.retroMode ? 'Adding to' : '✈'} ${esc(State.tripName)}</div>
         <div class="trip-status-total">${fmtAmt(tripAmt)}</div>
-        <div class="trip-status-end">End trip</div>
+        <div class="trip-status-end">${State.retroMode ? 'Done adding' : 'End trip'}</div>
       </div>`;
   } else {
     iconBtn.classList.remove('active');
@@ -2854,6 +2855,7 @@ function selectSub(s) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function openTravelModeInfoModal() {
+  const hasPastTrips = DataLayer.getTrips().length > 0;
   Modal.show(`
     <h3>✈ Travel Mode</h3>
     <p>Track expenses for a specific trip separately from your daily spending.</p>
@@ -2863,9 +2865,10 @@ function openTravelModeInfoModal() {
       <div class="tm-feature"><strong>History</strong>Completed trips are saved to your history</div>
       <div class="tm-feature"><strong>Same categories</strong>Uses all your existing categories and subs</div>
     </div>
-    <div class="modal-btns">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <button class="btn-pri" onclick="_showTripNameStep()">Start a new trip →</button>
+      ${hasPastTrips ? `<button class="btn-sec" onclick="openRetroTripSelectModal()">Add expenses to a past trip</button>` : ''}
       <button class="btn-sec" onclick="Modal.hide()">Not now</button>
-      <button class="btn-pri" onclick="_showTripNameStep()">Start a trip →</button>
     </div>
   `);
 }
@@ -2893,11 +2896,12 @@ function _startTrip() {
   const name   = nameEl ? nameEl.value.trim() : '';
   if (!name) { showToast('Enter a trip name', 'error', 2000); return; }
   const id = Date.now();
-  State.tripMode = true;
-  State.tripName = name;
+  State.tripMode  = true;
+  State.retroMode = false;
+  State.tripName  = name;
   State.tripStart = id;
-  State.tripId = id;
-  DataLayer.saveActiveTrip({ name, start: id, id });
+  State.tripId    = id;
+  DataLayer.saveActiveTrip({ name, start: id, id, retro: false });
   Modal.hide();
   showToast(`Trip "${name}" started`, 'success');
   renderTripBanner();
@@ -2906,14 +2910,25 @@ function _startTrip() {
 function openTripEndModal() {
   const entries = DataLayer.getAllExpenses().filter(e => e.tripId === State.tripId);
   const total   = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  Modal.show(`
-    <h3>End trip?</h3>
-    <p>"${esc(State.tripName)}"<br>${entries.length} expense${entries.length !== 1 ? 's' : ''} · ${fmtAmt(total)} total<br><br>This trip will be saved to your history.</p>
-    <div class="modal-btns">
-      <button class="btn-sec" onclick="Modal.hide()">Keep going</button>
-      <button class="btn-pri" onclick="_endTrip()">End &amp; save</button>
-    </div>
-  `);
+  if (State.retroMode) {
+    Modal.show(`
+      <h3>Done adding?</h3>
+      <p>"${esc(State.tripName)}"<br>${entries.length} expense${entries.length !== 1 ? 's' : ''} · ${fmtAmt(total)} total</p>
+      <div class="modal-btns">
+        <button class="btn-sec" onclick="Modal.hide()">Keep adding</button>
+        <button class="btn-pri" onclick="_endRetroMode()">Done</button>
+      </div>
+    `);
+  } else {
+    Modal.show(`
+      <h3>End trip?</h3>
+      <p>"${esc(State.tripName)}"<br>${entries.length} expense${entries.length !== 1 ? 's' : ''} · ${fmtAmt(total)} total<br><br>This trip will be saved to your history.</p>
+      <div class="modal-btns">
+        <button class="btn-sec" onclick="Modal.hide()">Keep going</button>
+        <button class="btn-pri" onclick="_endTrip()">End &amp; save</button>
+      </div>
+    `);
+  }
 }
 
 function _endTrip() {
@@ -2929,6 +2944,54 @@ function _endTrip() {
   renderTripBanner();
   renderTodayTotal();
   _cache.expenses = null;
+}
+
+function openRetroTripSelectModal() {
+  const trips = DataLayer.getTrips().slice().reverse();
+  if (trips.length === 0) { showToast('No past trips found', 'info'); return; }
+  let h = `<h3>Add to a past trip</h3><p>Select which trip these expenses belong to.</p>`;
+  trips.forEach(t => {
+    const dateStr = fmtDateShort(new Date(t.start).toISOString().slice(0, 10));
+    h += `
+      <div class="settings-item" style="margin-bottom:6px" onclick="_startRetroTrip(${t.id})">
+        <div>
+          <div style="font-size:14px;font-weight:500">✈ ${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)} · ${fmtAmt(t.total)} · ${t.count} expense${t.count !== 1 ? 's' : ''}</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--hint)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+  });
+  h += `<button class="btn-sec" style="width:100%;margin-top:4px" onclick="openTravelModeInfoModal()">← Back</button>`;
+  Modal.show(h);
+}
+
+function _startRetroTrip(tripId) {
+  const trip = DataLayer.getTrips().find(t => t.id === tripId);
+  if (!trip) return;
+  State.tripMode  = true;
+  State.retroMode = true;
+  State.tripName  = trip.name;
+  State.tripId    = trip.id;
+  State.tripStart = trip.start;
+  DataLayer.saveActiveTrip({ name: trip.name, start: trip.start, id: trip.id, retro: true });
+  Modal.hide();
+  showToast(`Adding expenses to "${trip.name}"`, 'success');
+  renderTripBanner();
+}
+
+function _endRetroMode() {
+  _syncTripTotals(State.tripId);
+  DataLayer.saveActiveTrip(null);
+  State.tripMode  = false;
+  State.retroMode = false;
+  State.tripName  = '';
+  State.tripStart = null;
+  State.tripId    = null;
+  _cache.expenses = null;
+  Modal.hide();
+  showToast('Expenses added to trip', 'success');
+  renderTripBanner();
+  renderTodayTotal();
 }
 
 function openTripFilterModal() {
@@ -3387,8 +3450,10 @@ function init() {
     State.tripName  = at.name;
     State.tripStart = at.start;
     State.tripId    = at.id;
+    State.retroMode = at.retro || false;
   } else {
-    State.tripMode = false;
+    State.tripMode  = false;
+    State.retroMode = false;
   }
 
   State.selMonth = todayStr().slice(0, 7);
